@@ -33,5 +33,6 @@ public interface SdkHarnessManager {
    * @param environment The environment specification for the desired session.
    * @param artifactSource An artifact source that can be used during creation.
    */
-  EnvironmentSession getSession(String jobId, Environment environment, ArtifactSource artifactSource);
+  EnvironmentSession getSession(String jobId, Environment environment,
+      ArtifactSource artifactSource);
 }
