@@ -17,7 +17,7 @@
  */
 
 apply from: project(":").file("build_rules.gradle")
-applyJavaNature()
+applyJavaNature(artifactId: "beam-runners-direct-java")
 
 description = "Apache Beam :: Runners :: Direct Java"
 
@@ -69,3 +69,6 @@ shadowJar {
   relocate "com.google.protobuf", getJavaRelocatedPath("com.google.protobuf")
   relocate "javax.annotation", getJavaRelocatedPath("javax.annotation")
 }
+
+// Generates :runners:direct-java:runQuickstartJavaDirect
+createJavaQuickstartValidationTask(name: 'Direct')
