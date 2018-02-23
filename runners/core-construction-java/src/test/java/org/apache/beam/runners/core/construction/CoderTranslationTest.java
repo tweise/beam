@@ -43,7 +43,6 @@ import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.LengthPrefixCoder;
 import org.apache.beam.sdk.coders.SerializableCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
-import org.apache.beam.sdk.coders.StructuredCoder;
 import org.apache.beam.sdk.coders.VarLongCoder;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.transforms.windowing.IntervalWindow.IntervalWindowCoder;
@@ -60,8 +59,8 @@ import org.junit.runners.Parameterized.Parameters;
 /** Tests for {@link CoderTranslation}. */
 @RunWith(Enclosed.class)
 public class CoderTranslationTest {
-  private static final Set<StructuredCoder<?>> KNOWN_CODERS =
-      ImmutableSet.<StructuredCoder<?>>builder()
+  private static final Set<Coder<?>> KNOWN_CODERS =
+      ImmutableSet.<Coder<?>>builder()
           .add(ByteArrayCoder.of())
           .add(KvCoder.of(VarLongCoder.of(), VarLongCoder.of()))
           .add(VarLongCoder.of())
@@ -75,8 +74,8 @@ public class CoderTranslationTest {
           .build();
 
   /**
-   * Tests that all known coders are present in the parameters that will be used by
-   * {@link ToFromProtoTest}.
+   * Tests that all known coders are present in the parameters that will be used by {@link
+   * ToFromProtoTest}.
    */
   @RunWith(JUnit4.class)
   public static class ValidateKnownCodersPresentTest {
@@ -114,10 +113,7 @@ public class CoderTranslationTest {
     }
   }
 
-
-  /**
-   * Tests round-trip coder encodings for both known and unknown {@link Coder coders}.
-   */
+  /** Tests round-trip coder encodings for both known and unknown {@link Coder coders}. */
   @RunWith(Parameterized.class)
   public static class ToFromProtoTest {
     @Parameters(name = "{index}: {0}")
@@ -155,16 +151,39 @@ public class CoderTranslationTest {
       }
     }
 
+    @Test
+    public void testToProtoFromKnownCoderOrByteArray() throws IOException {
+      SdkComponents componentsBuilder = SdkComponents.create();
+      RunnerApi.Coder coderProto = CoderTranslation.toProto(coder, componentsBuilder);
+
+      Components encodedComponents = componentsBuilder.toComponents();
+      Coder<?> decodedCoder =
+          CoderTranslation.knownCoderOrByteArrayCoder(coderProto, encodedComponents.getCodersMap());
+
+      assertUnknownCodersByteArray(decodedCoder);
+    }
+
+    private <T> void assertUnknownCodersByteArray(Coder<T> coder) {
+      if (KNOWN_CODERS
+          .stream()
+          .map(Coder::getClass)
+          .anyMatch(clazz -> clazz.equals(coder.getClass()))) {
+        for (Coder<?> component : coder.getCoderArguments()) {
+          assertUnknownCodersByteArray(component);
+        }
+      } else {
+        assertThat(coder, Matchers.isA((Class) ByteArrayCoder.class));
+      }
+    }
+
     static class Record implements Serializable {}
 
     private static class RecordCoder extends AtomicCoder<Record> {
       @Override
-      public void encode(Record value, OutputStream outStream)
-          throws CoderException, IOException {}
+      public void encode(Record value, OutputStream outStream) throws CoderException, IOException {}
 
       @Override
-      public Record decode(InputStream inStream)
-          throws CoderException, IOException {
+      public Record decode(InputStream inStream) throws CoderException, IOException {
         return new Record();
       }
     }

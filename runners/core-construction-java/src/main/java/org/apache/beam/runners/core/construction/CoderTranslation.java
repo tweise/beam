@@ -34,6 +34,7 @@ import java.util.ServiceLoader;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
+import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.util.SerializableUtils;
 
@@ -155,5 +156,37 @@ public class CoderTranslation {
     return (Coder<?>)
         SerializableUtils.deserializeFromByteArray(
             protoCoder.getSpec().getSpec().getPayload().toByteArray(), "Custom Coder Bytes");
+  }
+
+  /**
+   * Convert a {@link RunnerApi.Coder} into a java {@link Coder}. If there is a registered {@link
+   * CoderTranslator} for the {@link RunnerApi.Coder}, deserialize the coder using that {@link
+   * CoderTranslator}. Otherwise, return a {@link ByteArrayCoder}.
+   *
+   * <p>Component {@link RunnerApi.Coder coders} are recursively deserialized with this method.
+   *
+   * <p>Length prefix coders are not added or removed by this method.
+   */
+  public static Coder<?> knownCoderOrByteArrayCoder(
+      RunnerApi.Coder coder, Map<String, RunnerApi.Coder> components) {
+    String coderUrn = coder.getSpec().getSpec().getUrn();
+    Class<? extends Coder> coderType = KNOWN_CODER_URNS.inverse().get(coderUrn);
+    CoderTranslator<?> translator = KNOWN_TRANSLATORS.get(coderType);
+    if (translator == null) {
+      return ByteArrayCoder.of();
+    }
+    List<Coder<?>> coderComponents = new LinkedList<>();
+    for (String componentId : coder.getComponentCoderIdsList()) {
+      RunnerApi.Coder componentCoderProto = components.get(componentId);
+      checkArgument(
+          componentCoderProto != null,
+          "Unknown Component %s %s",
+          Coder.class.getSimpleName(),
+          componentId);
+      Coder<?> innerCoder = knownCoderOrByteArrayCoder(componentCoderProto, components);
+      coderComponents.add(innerCoder);
+    }
+    return translator.fromComponents(
+        coderComponents, coder.getSpec().getSpec().getPayload().toByteArray());
   }
 }
