@@ -25,7 +25,7 @@ import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
  * A handle to an available remote {@link Environment}. This environment is connected to a
  * Fn API Control service, and the associated client is available via {@link #getClient()}.
  */
-interface RemoteEnvironment extends AutoCloseable {
+public interface RemoteEnvironment extends AutoCloseable {
   /**
    * Return the environment that the remote handles.
    */

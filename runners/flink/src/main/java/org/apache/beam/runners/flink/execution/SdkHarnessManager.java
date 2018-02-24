@@ -18,6 +18,7 @@
 
 package org.apache.beam.runners.flink.execution;
 
+import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 
@@ -33,6 +34,8 @@ public interface SdkHarnessManager {
    * @param environment The environment specification for the desired session.
    * @param artifactSource An artifact source that can be used during creation.
    */
-  EnvironmentSession getSession(String jobId, Environment environment,
-      ArtifactSource artifactSource);
+  EnvironmentSession getSession(
+      ProvisionApi.ProvisionInfo jobInfo,
+      Environment environment,
+      ArtifactSource artifactSource) throws Exception;
 }
