@@ -19,16 +19,20 @@
 package org.apache.beam.runners.core.construction.graph;
 
 import com.google.auto.value.AutoValue;
+import com.google.common.collect.Sets;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
-import org.apache.beam.model.pipeline.v1.RunnerApi.Components.Builder;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 
-/**
- * A {@link Pipeline} which has been separated into collections of executable components.
- */
+/** A {@link Pipeline} which has been separated into collections of executable components. */
 @AutoValue
 public abstract class FusedPipeline {
   static FusedPipeline of(
@@ -36,37 +40,63 @@ public abstract class FusedPipeline {
     return new AutoValue_FusedPipeline(environmentalStages, runnerStages);
   }
 
-  /**
-   * The {@link ExecutableStage executable stages} that are executed by SDK harnesses.
-   */
+  /** The {@link ExecutableStage executable stages} that are executed by SDK harnesses. */
   public abstract Set<ExecutableStage> getFusedStages();
 
-  /**
-   * The {@link PTransform PTransforms} that a runner is responsible for executing.
-   */
+  /** The {@link PTransform PTransforms} that a runner is responsible for executing. */
   public abstract Set<PTransformNode> getRunnerExecutedTransforms();
+
+  public RunnerApi.Pipeline toPipeline(Components initialComponents) {
+    Components executableComponents =
+        initialComponents
+            .toBuilder()
+            .clearTransforms()
+            .putAllTransforms(getTopLevelTransforms(initialComponents))
+            .build();
+    List<String> rootTransformIds =
+        StreamSupport.stream(
+                QueryablePipeline.forComponents(executableComponents)
+                    .getTopologicallyOrderedTransforms()
+                    .spliterator(),
+                false)
+            .map(PTransformNode::getId)
+            .collect(Collectors.toList());
+    return Pipeline.newBuilder()
+        .setComponents(executableComponents.toBuilder().putAllTransforms(getFusedTransforms()))
+        .addAllRootTransformIds(rootTransformIds)
+        .build();
+  }
 
   /**
    * Return a {@link Components} like the {@code base} components, but with the only transforms
    * equal to this fused pipeline.
    *
-   * <p>The only composites will be the stages returned by {@link #getFusedStages()}.
+   * <p>The only composites will be the stages returned by {@link #getFusedStages()}, and the only
+   * primitives will be the {@link PTransformNode transforms} returned by {@link
+   * #getRunnerExecutedTransforms()}.
    */
-  public Components asComponents(Components base) {
-    Builder newComponents = base.toBuilder().clearTransforms();
+  private Map<String, PTransform> getTopLevelTransforms(Components base) {
+    Map<String, PTransform> topLevelTransforms = new HashMap<>();
     for (PTransformNode runnerExecuted : getRunnerExecutedTransforms()) {
-      newComponents.putTransforms(runnerExecuted.getId(), runnerExecuted.getTransform());
+      topLevelTransforms.put(runnerExecuted.getId(), runnerExecuted.getTransform());
     }
     for (ExecutableStage stage : getFusedStages()) {
-      for (PTransformNode fusedTransform : stage.getTransforms()) {
-        newComponents.putTransforms(fusedTransform.getId(), fusedTransform.getTransform());
-      }
-      newComponents.putTransforms(stageId(stage, newComponents), stage.toPTransform());
+      topLevelTransforms.put(
+          generateStageId(
+              stage, Sets.union(base.getTransformsMap().keySet(), topLevelTransforms.keySet())),
+          stage.toPTransform());
     }
-    return newComponents.build();
+    return topLevelTransforms;
   }
 
-  private String stageId(ExecutableStage stage, Components.Builder cbuilder) {
+  private Map<String, PTransform> getFusedTransforms() {
+    return getFusedStages()
+        .stream()
+        .flatMap(stage -> stage.getTransforms().stream())
+        .collect(Collectors.toMap(PTransformNode::getId, PTransformNode::getTransform));
+  }
+
+  private String generateStageId(ExecutableStage stage, Set<String> existingIds) {
     int i = 0;
     String name;
     do {
@@ -78,7 +108,7 @@ public abstract class FusedPipeline {
               stage.getEnvironment().getUrl(),
               i);
       i++;
-    } while (cbuilder.containsTransforms(name));
+    } while (existingIds.contains(name));
     return name;
   }
 }
