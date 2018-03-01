@@ -66,6 +66,7 @@ dependencies {
   shadow library.java.junit
   shadow "org.tukaani:xz:1.5"
   shadowTest project(":model:fn-execution").sourceSets.test.output
+  shadowTest project(path: ":runners:core-construction-java", configuration: "shadow")
   shadowTest library.java.guava_testlib
   shadowTest library.java.jackson_dataformat_yaml
   shadowTest library.java.slf4j_jdk14
