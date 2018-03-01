@@ -37,12 +37,12 @@ import java.util.stream.Collectors;
 /**
  * A docker command wrapper. Simplifies communications with the Docker daemon.
  */
-class DockerWrapper {
+public class DockerWrapper {
   // TODO: Should we require 64-character container ids? Docker technically allows abbreviated ids,
   // but we _should_ always capture full ids.
   private static final Pattern CONTAINER_ID_PATTERN = Pattern.compile("\\p{XDigit}{64}");
 
-  static DockerWrapper forCommand(String dockerExecutable, Duration commandTimeout) {
+  public static DockerWrapper forCommand(String dockerExecutable, Duration commandTimeout) {
     return new DockerWrapper(dockerExecutable, commandTimeout);
   }
 
