@@ -1,6 +1,7 @@
 package org.apache.beam.runners.fnexecution.artifact;
 
 
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.util.stream.Stream;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
@@ -33,21 +34,26 @@ public class GrpcArtifactProxyService
   public void getManifest(
       ArtifactApi.GetManifestRequest request,
       StreamObserver<ArtifactApi.GetManifestResponse> responseObserver) {
-    ArtifactApi.Manifest manifest = artifactSource.getManifest();
-    ArtifactApi.GetManifestResponse response =
-        ArtifactApi.GetManifestResponse.newBuilder().setManifest(manifest).build();
-    responseObserver.onNext(response);
-    responseObserver.onCompleted();
+    try {
+      ArtifactApi.Manifest manifest = artifactSource.getManifest();
+      ArtifactApi.GetManifestResponse response =
+          ArtifactApi.GetManifestResponse.newBuilder().setManifest(manifest).build();
+      responseObserver.onNext(response);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription("Could not retrieve manifest.")
+              .withCause(e)
+              .asException());
+    }
   }
 
   @Override
   public void getArtifact(
       ArtifactApi.GetArtifactRequest request,
       StreamObserver<ArtifactApi.ArtifactChunk> responseObserver) {
-    Stream<ArtifactApi.ArtifactChunk> artifactChunkStream =
-        artifactSource.getArtifact(request.getName());
-    artifactChunkStream.forEach(responseObserver::onNext);
-    responseObserver.onCompleted();
+    artifactSource.getArtifact(request.getName(), responseObserver);
   }
 
   @Override

@@ -18,8 +18,11 @@
 
 package org.apache.beam.runners.fnexecution.artifact;
 
-import java.util.stream.Stream;
-import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
+import java.io.IOException;
+
+import io.grpc.stub.StreamObserver;
+import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
+import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
 
 /**
  * Makes artifacts available to an ArtifactRetrievalService by
@@ -30,10 +33,10 @@ public interface ArtifactSource {
   /**
    * Get the artifact manifest available from this source.
    */
-  ArtifactApi.Manifest getManifest();
+  Manifest getManifest() throws IOException;
 
   /**
    * Get an artifact by its name.
    */
-  Stream<ArtifactApi.ArtifactChunk> getArtifact(String name);
+  void getArtifact(String name, StreamObserver<ArtifactChunk> responseObserver);
 }
