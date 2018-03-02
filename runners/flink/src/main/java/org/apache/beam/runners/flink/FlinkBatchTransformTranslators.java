@@ -133,7 +133,8 @@ class FlinkBatchTransformTranslators {
     return urn == null ? null : TRANSLATORS.get(urn);
   }
 
-  private static class ImpulseTranslatorBatch implements FlinkBatchPipelineTranslator.BatchTransformTranslator<
+  private static class ImpulseTranslatorBatch implements
+      FlinkBatchPipelineTranslator.BatchTransformTranslator<
       PTransform<PBegin, PCollection<byte[]>>> {
 
     @Override
