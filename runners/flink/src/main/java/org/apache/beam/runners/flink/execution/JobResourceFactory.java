@@ -10,7 +10,6 @@ import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.artifact.GrpcArtifactProxyService;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClientControlService;
-import org.apache.beam.runners.fnexecution.data.FnDataService;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
 import org.apache.beam.runners.fnexecution.environment.DockerWrapper;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentManager;

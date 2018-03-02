@@ -8,7 +8,9 @@ import static org.mockito.Mockito.when;
 
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
+import org.apache.beam.runners.fnexecution.data.GrpcDataService;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentManager;
 import org.apache.beam.runners.fnexecution.environment.RemoteEnvironment;
 import org.junit.Before;
@@ -27,6 +29,8 @@ public class JobResourceManagerTest {
   @Mock JobResourceFactory jobResourceFactory;
   @Mock EnvironmentManager containerManager;
   @Mock RemoteEnvironment remoteEnvironment;
+  @Mock GrpcFnServer<GrpcDataService> dataServer;
+  @Mock GrpcDataService dataService;
 
   JobResourceManager manager;
 
@@ -34,14 +38,18 @@ public class JobResourceManagerTest {
   public void setUp() throws Exception {
     MockitoAnnotations.initMocks(this);
     manager = JobResourceManager.create(jobInfo, environment, artifactSource, jobResourceFactory);
-    when(jobResourceFactory.containerManager(artifactSource, jobInfo)).thenReturn(containerManager);
+    when(jobResourceFactory.dataService()).thenReturn(dataServer);
+    when(dataServer.getService()).thenReturn(dataService);
+    when(jobResourceFactory.containerManager(artifactSource, jobInfo, dataService))
+        .thenReturn(containerManager);
     when(containerManager.getEnvironment(environment)).thenReturn(remoteEnvironment);
   }
 
   @Test
   public void testStartCreatesResources() throws Exception {
     manager.start();
-    verify(jobResourceFactory, times(1)).containerManager(artifactSource, jobInfo);
+    verify(jobResourceFactory, times(1))
+        .containerManager(artifactSource, jobInfo, dataService);
     verify(containerManager, times(1)).getEnvironment(environment);
     assertTrue(manager.isStarted());
   }
