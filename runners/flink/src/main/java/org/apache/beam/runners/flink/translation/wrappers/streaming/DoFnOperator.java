@@ -39,12 +39,10 @@ import javax.annotation.Nullable;
 import org.apache.beam.runners.core.DoFnRunner;
 import org.apache.beam.runners.core.DoFnRunners;
 import org.apache.beam.runners.core.NullSideInputReader;
-import org.apache.beam.runners.core.ProcessFnRunner;
 import org.apache.beam.runners.core.PushbackSideInputDoFnRunner;
 import org.apache.beam.runners.core.SideInputHandler;
 import org.apache.beam.runners.core.SideInputReader;
 import org.apache.beam.runners.core.SimplePushbackSideInputDoFnRunner;
-import org.apache.beam.runners.core.SplittableParDoViaKeyedWorkItems;
 import org.apache.beam.runners.core.StateInternals;
 import org.apache.beam.runners.core.StateNamespace;
 import org.apache.beam.runners.core.StateNamespaces;
@@ -354,13 +352,8 @@ public class DoFnOperator<InputT, OutputT>
             .scheduleAtFixedRate(
                 timestamp -> checkInvokeFinishBundleByTime(), bundleCheckPeriod, bundleCheckPeriod);
 
-    if (doFn instanceof SplittableParDoViaKeyedWorkItems.ProcessFn) {
-      pushbackDoFnRunner =
-          new ProcessFnRunner<>((DoFnRunner) doFnRunner, sideInputs, sideInputHandler);
-    } else {
-      pushbackDoFnRunner =
-          SimplePushbackSideInputDoFnRunner.create(doFnRunner, sideInputs, sideInputHandler);
-    }
+    pushbackDoFnRunner =
+        SimplePushbackSideInputDoFnRunner.create(doFnRunner, sideInputs, sideInputHandler);
   }
 
   @Override
