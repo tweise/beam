@@ -1,5 +1,6 @@
 package org.apache.beam.runners.flink.execution;
 
+import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
@@ -11,21 +12,23 @@ public class JobResourceEnvironmentSession implements EnvironmentSession {
   private final RunnerApi.Environment environment;
   private final ArtifactSource artifactSource;
   private final SdkHarnessClient client;
+  private final ApiServiceDescriptor dataServiceDescriptor;
 
   private boolean isClosed = false;
 
   public JobResourceEnvironmentSession(
       RunnerApi.Environment environment,
       ArtifactSource artifactSource,
-      SdkHarnessClient client) {
+      SdkHarnessClient client,
+      ApiServiceDescriptor dataServiceDescriptor) {
     this.environment = environment;
     this.artifactSource = artifactSource;
     this.client = client;
+    this.dataServiceDescriptor = dataServiceDescriptor;
   }
 
   @Override
   public RunnerApi.Environment getEnvironment() {
-    validateNotClosed();
     return environment;
   }
 
@@ -39,6 +42,11 @@ public class JobResourceEnvironmentSession implements EnvironmentSession {
   public SdkHarnessClient getClient() {
     validateNotClosed();
     return client;
+  }
+
+  @Override
+  public ApiServiceDescriptor getDataServiceDescriptor() {
+    return dataServiceDescriptor;
   }
 
   /**

@@ -59,20 +59,27 @@ public class JobResourceFactory {
   }
 
   /** Create a new control service. */
-  private GrpcFnServer<SdkHarnessClientControlService> controlService() throws IOException {
-    FnDataService dataService = GrpcDataService.create(executor);
+  private GrpcFnServer<SdkHarnessClientControlService> controlService(GrpcDataService dataService)
+      throws IOException {
     SdkHarnessClientControlService controlService =
         SdkHarnessClientControlService.create(() -> dataService);
     return GrpcFnServer.allocatePortAndCreateFor(controlService, serverFactory);
   }
 
+  /** Create a new data service. */
+  public GrpcFnServer<GrpcDataService> dataService() throws IOException {
+    GrpcDataService dataService = GrpcDataService.create(executor);
+    return GrpcFnServer.allocatePortAndCreateFor(dataService, serverFactory);
+  }
+
   /** Create a new container manager from artifact source and jobInfo. */
-  EnvironmentManager containerManager(ArtifactSource artifactSource, ProvisionInfo jobInfo)
+  EnvironmentManager containerManager(
+      ArtifactSource artifactSource, ProvisionInfo jobInfo, GrpcDataService dataService)
       throws IOException {
     return SingletonDockerEnvironmentManager.forServices(
         // TODO: Replace hardcoded values with configurable ones
         DockerWrapper.forCommand("docker", Duration.ofSeconds(30)),
-        controlService(),
+        controlService(dataService),
         loggingService(),
         artifactRetrievalService(artifactSource),
         provisionService(jobInfo)

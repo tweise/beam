@@ -3,7 +3,9 @@ package org.apache.beam.runners.flink.execution;
 import javax.annotation.Nullable;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
+import org.apache.beam.runners.fnexecution.data.GrpcDataService;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentManager;
 import org.apache.beam.runners.fnexecution.environment.RemoteEnvironment;
 
@@ -36,6 +38,7 @@ public class JobResourceManager {
   // environment resources (will eventually need to support multiple environments)
   @Nullable private RemoteEnvironment remoteEnvironment = null;
   @Nullable private EnvironmentManager containerManager = null;
+  @Nullable private GrpcFnServer<GrpcDataService> dataService = null;
 
   private JobResourceManager (
       ProvisionApi.ProvisionInfo jobInfo,
@@ -56,7 +59,8 @@ public class JobResourceManager {
     return new JobResourceEnvironmentSession(
         remoteEnvironment.getEnvironment(),
         artifactSource,
-        remoteEnvironment.getClient()
+        remoteEnvironment.getClient(),
+        dataService.getApiServiceDescriptor()
     );
   }
 
@@ -66,7 +70,9 @@ public class JobResourceManager {
    * @throws Exception
    */
   public void start() throws Exception {
-    containerManager = jobResourceFactory.containerManager(artifactSource, jobInfo);
+    dataService = jobResourceFactory.dataService();
+    containerManager =
+        jobResourceFactory.containerManager(artifactSource, jobInfo, dataService.getService());
     remoteEnvironment = containerManager.getEnvironment(environment);
   }
 

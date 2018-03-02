@@ -18,6 +18,7 @@
 
 package org.apache.beam.runners.flink.execution;
 
+import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
@@ -44,4 +45,9 @@ public interface EnvironmentSession extends AutoCloseable {
    * Get an {@link SdkHarnessClient} that can communicate with an instance of the environment.
    */
   SdkHarnessClient getClient();
+
+  /**
+   * Get a {@link ApiServiceDescriptor} for the data service.
+   */
+  ApiServiceDescriptor getDataServiceDescriptor();
 }
