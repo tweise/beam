@@ -3,7 +3,6 @@ package org.apache.beam.runners.fnexecution.artifact;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import java.util.stream.Stream;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi;
 import org.apache.beam.model.jobmanagement.v1.ArtifactRetrievalServiceGrpc;
 import org.apache.beam.runners.fnexecution.FnService;

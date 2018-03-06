@@ -16,26 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.beam.runners.fnexecution.artifact;
-
-import io.grpc.stub.StreamObserver;
-import java.io.IOException;
-import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
-import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
-
 /**
- * Makes artifacts available to an ArtifactRetrievalService by
- * encapsulating runner-specific resources.
+ * Internal job management service implementation of the Beam runner for Apache Flink.
  */
-public interface ArtifactSource {
-
-  /**
-   * Get the artifact manifest available from this source.
-   */
-  Manifest getManifest() throws IOException;
-
-  /**
-   * Get an artifact by its name.
-   */
-  void getArtifact(String name, StreamObserver<ArtifactChunk> responseObserver);
-}
+package org.apache.beam.runners.fnexecution.jobsubmission;

@@ -18,24 +18,15 @@
 
 package org.apache.beam.runners.fnexecution.artifact;
 
-import io.grpc.stub.StreamObserver;
-import java.io.IOException;
-import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
-import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
+import org.apache.beam.runners.fnexecution.FnService;
 
-/**
- * Makes artifacts available to an ArtifactRetrievalService by
- * encapsulating runner-specific resources.
- */
-public interface ArtifactSource {
-
+/** An implementation of the Beam Artifact Staging Service. */
+public interface ArtifactStagingService extends FnService {
   /**
-   * Get the artifact manifest available from this source.
+   * Get an artifact source that can access staged artifacts.
+   *
+   * <p>Once an artifact staging service has staged artifacts, runners need a way to access them.
+   * Thus this method provides an ArtifactSource that can access them.
    */
-  Manifest getManifest() throws IOException;
-
-  /**
-   * Get an artifact by its name.
-   */
-  void getArtifact(String name, StreamObserver<ArtifactChunk> responseObserver);
+  ArtifactSource createAccessor();
 }
