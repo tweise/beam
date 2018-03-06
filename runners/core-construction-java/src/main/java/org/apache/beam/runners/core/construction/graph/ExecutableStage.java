@@ -112,18 +112,19 @@ public interface ExecutableStage {
       payload.addOutputs(output.getId());
     }
 
-    int[] i = new int[1];
-    return PTransform.newBuilder()
-        .setSpec(
-            FunctionSpec.newBuilder()
-                .setUrn(ExecutableStage.URN)
-                .setPayload(payload.build().toByteString()))
-        .putInputs("input", getInputPCollection().getId())
-        .putAllOutputs(getOutputPCollections().stream().collect(Collectors.toMap(
-            pcNode -> String.format("materialized_%s", i[0]++),
-            PCollectionNode::getId
-        )))
-        .build();
+    PTransform.Builder pt = PTransform.newBuilder();
+    pt.setSpec(FunctionSpec.newBuilder()
+        .setUrn(ExecutableStage.URN)
+        .setPayload(payload.build().toByteString())
+        .build());
+    pt.putInputs("input", getInputPCollection().getId());
+    int outputIndex = 0;
+    for (PCollectionNode pcNode : getOutputPCollections()) {
+      // Do something
+      pt.putOutputs(String.format("materialized_%d", outputIndex), pcNode.getId());
+      outputIndex++;
+    }
+    return pt.build();
   }
 
   // TODO: Should this live under ExecutableStageTranslation?
