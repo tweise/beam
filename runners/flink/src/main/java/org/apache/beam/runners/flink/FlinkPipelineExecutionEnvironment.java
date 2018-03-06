@@ -19,9 +19,19 @@ package org.apache.beam.runners.flink;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.common.io.Files;
+import com.google.common.util.concurrent.SettableFuture;
+import io.grpc.stub.StreamObserver;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
+import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
+import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactMetadata;
+import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
+import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.java.CollectionEnvironment;
@@ -42,9 +52,38 @@ import org.slf4j.LoggerFactory;
  * transform the Beam job into a Flink one, and executes the (translated) job.
  */
 class FlinkPipelineExecutionEnvironment {
-
   private static final Logger LOG =
       LoggerFactory.getLogger(FlinkPipelineExecutionEnvironment.class);
+
+  private static class ArtifactWriter implements StreamObserver<ArtifactChunk> {
+
+    private final FileOutputStream outputStream;
+    public final SettableFuture<Void> result;
+
+    public ArtifactWriter(FileOutputStream outputStream) {
+      this.outputStream = outputStream;
+      this.result = SettableFuture.create();
+    }
+
+    @Override
+    public void onNext(ArtifactChunk artifactChunk) {
+      try {
+        outputStream.write(artifactChunk.getData().toByteArray());
+      } catch (IOException e) {
+        onError(e);
+      }
+    }
+
+    @Override
+    public void onError(Throwable throwable) {
+      result.setException(throwable);
+    }
+
+    @Override
+    public void onCompleted() {
+      result.set(null);
+    }
+  }
 
   private final FlinkPipelineOptions options;
 
@@ -260,4 +299,45 @@ class FlinkPipelineExecutionEnvironment {
     return flinkStreamEnv;
   }
 
+  public void loadStagedArtifacts(ArtifactSource artifactSource) throws IOException {
+    // get temp directory for cached files
+    File tempDir = Files.createTempDir();
+    Path tempDirPath = tempDir.toPath();
+    FlinkCachedArtifactNames cachedArtifactNames = FlinkCachedArtifactNames.createDefault();
+
+    // store and register manifest
+    Manifest manifest = artifactSource.getManifest();
+    Path manifestPath = tempDirPath.resolve("MANIFEST");
+    String manifestHandle = cachedArtifactNames.getManifestHandle();
+    try (FileOutputStream fileOutputStream = new FileOutputStream(manifestPath.toFile())) {
+      manifest.writeTo(fileOutputStream);
+    }
+    registerCachedFile(manifestPath.toUri().toString(), manifestHandle);
+
+    // store and register artifacts
+    for (ArtifactMetadata metadata : manifest.getArtifactList()) {
+      String artifactName = metadata.getName();
+      String artifactHandle = cachedArtifactNames.getArtifactHandle(artifactName);
+      Path artifactPath = tempDirPath.resolve(artifactHandle);
+      try (FileOutputStream fileOutputStream = new FileOutputStream(artifactPath.toFile())) {
+        ArtifactWriter writer = new ArtifactWriter(fileOutputStream);
+        artifactSource.getArtifact(artifactHandle, writer);
+        writer.result.wait();
+        registerCachedFile(artifactPath.toUri().toString(), artifactHandle);
+      } catch (InterruptedException e) {
+        LOG.warn("Interrupted while writing artifact with name %s", artifactName);
+      }
+    }
+
+  }
+
+  private void registerCachedFile(String fileUri, String name) {
+    if (flinkBatchEnv != null) {
+      flinkBatchEnv.registerCachedFile(fileUri, name);
+    } else if (flinkStreamEnv != null) {
+      flinkStreamEnv.registerCachedFile(fileUri, name);
+    } else {
+      throw new IllegalStateException("The Pipeline has not yet been translated.");
+    }
+  }
 }

@@ -11,7 +11,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
-import org.apache.beam.runners.flink.FlinkCachedArtifactPaths;
+import org.apache.beam.runners.flink.FlinkCachedArtifactNames;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.flink.api.common.cache.DistributedCache;
 
@@ -19,28 +19,28 @@ import org.apache.flink.api.common.cache.DistributedCache;
  * An {@link org.apache.beam.runners.fnexecution.artifact.ArtifactSource} that draws artifacts
  * from the Flink Distributed File Cache {@link org.apache.flink.api.common.cache.DistributedCache}.
  */
-public class FlinkArtifactSource implements ArtifactSource {
+public class CachedArtifactSource implements ArtifactSource {
   private static final int DEFAULT_CHUNK_SIZE_BYTES = 2 * 1024 * 1024;
 
-  public static FlinkArtifactSource createDefault(DistributedCache cache) {
-    return new FlinkArtifactSource(cache, FlinkCachedArtifactPaths.createDefault());
+  public static CachedArtifactSource createDefault(DistributedCache cache) {
+    return new CachedArtifactSource(cache, FlinkCachedArtifactNames.createDefault());
   }
 
-  public static FlinkArtifactSource forToken(DistributedCache cache, String artifactToken) {
-    return new FlinkArtifactSource(cache, FlinkCachedArtifactPaths.forToken(artifactToken));
+  public static CachedArtifactSource forToken(DistributedCache cache, String artifactToken) {
+    return new CachedArtifactSource(cache, FlinkCachedArtifactNames.forToken(artifactToken));
   }
 
   private final DistributedCache cache;
-  private final FlinkCachedArtifactPaths paths;
+  private final FlinkCachedArtifactNames paths;
 
-  private FlinkArtifactSource(DistributedCache cache, FlinkCachedArtifactPaths paths) {
+  private CachedArtifactSource(DistributedCache cache, FlinkCachedArtifactNames paths) {
     this.cache = cache;
     this.paths = paths;
   }
 
   @Override
   public Manifest getManifest() throws IOException {
-    String path = paths.getManifestPath();
+    String path = paths.getManifestHandle();
     File manifest = cache.getFile(path);
     try (BufferedInputStream fStream = new BufferedInputStream(new FileInputStream(manifest))) {
       return Manifest.parseFrom(fStream);
@@ -50,7 +50,7 @@ public class FlinkArtifactSource implements ArtifactSource {
 
   @Override
   public void getArtifact(String name, StreamObserver<ArtifactChunk> responseObserver) {
-    String path = paths.getArtifactPath(name);
+    String path = paths.getArtifactHandle(name);
     File artifact = cache.getFile(path);
     try (FileInputStream fStream = new FileInputStream(artifact)) {
       byte[] buffer = new byte[DEFAULT_CHUNK_SIZE_BYTES];

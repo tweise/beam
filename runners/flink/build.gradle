@@ -54,11 +54,13 @@ dependencies {
   shadow project(path: ":runners:core-java", configuration: "shadow")
   shadow project(path: ":runners:core-construction-java", configuration: "shadow")
   shadow project(path: ":runners:java-fn-execution", configuration: "shadow")
+  shadow project(path: ":runners:local-artifact-service-java", configuration: "shadow")
   shadow library.java.jackson_annotations
   shadow library.java.findbugs_jsr305
   shadow library.java.slf4j_api
   shadow library.java.joda_time
   shadow library.java.commons_compress
+  shadow library.java.args4j
   shadow "org.apache.flink:flink-clients_2.11:$flink_version"
   shadow "org.apache.flink:flink-core:$flink_version"
   shadow "org.apache.flink:flink-metrics-core:$flink_version"
