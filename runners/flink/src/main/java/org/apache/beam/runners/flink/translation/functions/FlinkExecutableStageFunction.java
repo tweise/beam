@@ -21,6 +21,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.protobuf.Struct;
 import java.util.Map;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
@@ -67,6 +68,7 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
         // TODO: Set this from job metadata.
         .setJobId("job-id")
         .setWorkerId(getRuntimeContext().getTaskNameWithSubtasks())
+        .setPipelineOptions(Struct.newBuilder().build())
         .build();
     RunnerApi.Environment environment = RunnerApi.Environment.newBuilder()
         // TODO: Set this from transform metadata.
