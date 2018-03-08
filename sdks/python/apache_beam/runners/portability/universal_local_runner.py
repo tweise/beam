@@ -31,6 +31,8 @@ from concurrent import futures
 import grpc
 from google.protobuf import text_format
 
+from apache_beam import coders
+from apache_beam.internal import pickler
 from apache_beam.portability.api import beam_fn_api_pb2_grpc
 from apache_beam.portability.api import beam_job_api_pb2
 from apache_beam.portability.api import beam_job_api_pb2_grpc
@@ -152,10 +154,10 @@ class UniversalLocalRunner(runner.PipelineRunner):
     proto_pipeline, proto_context = pipeline.to_runner_api(return_context=True)
     if self._runner_api_address:
       for pcoll in proto_pipeline.components.pcollections.values():
-        if pcoll.coder_id not in self.proto_context.coders:
+        if pcoll.coder_id not in proto_context.coders:
           coder = coders.registry.get_coder(pickler.loads(pcoll.coder_id))
-          pcoll.coder_id = self.proto_context.coders.get_id(coder)
-      self.proto_context.coders.populate_map(proto_pipeline.components.coders)
+          pcoll.coder_id = proto_context.coders.get_id(coder)
+      proto_context.coders.populate_map(proto_pipeline.components.coders)
 
     job_service = self._get_job_service()
     prepare_response = job_service.Prepare(
