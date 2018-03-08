@@ -41,27 +41,33 @@ public class FlinkArtifactSource implements ArtifactSource {
   @Override
   public Manifest getManifest() throws IOException {
     String path = paths.getManifestPath();
-    File manifest = cache.getFile(path);
+    File manifest;
+    try {
+      // cache.geFile throws an IllegalArgumentException for unrecognized paths
+      manifest = cache.getFile(path);
+    } catch (IllegalArgumentException e) {
+      return Manifest.getDefaultInstance();
+    }
     try (BufferedInputStream fStream = new BufferedInputStream(new FileInputStream(manifest))) {
       return Manifest.parseFrom(fStream);
-    } catch (FileNotFoundException e) {
-      // if file is not found, return the default (empty) manifest
-      return Manifest.getDefaultInstance();
     }
   }
 
   @Override
   public void getArtifact(String name, StreamObserver<ArtifactChunk> responseObserver) {
     String path = paths.getArtifactPath(name);
-    File artifact = cache.getFile(path);
-    try (FileInputStream fStream = new FileInputStream(artifact)) {
-      byte[] buffer = new byte[DEFAULT_CHUNK_SIZE_BYTES];
-      for (int bytesRead = fStream.read(buffer); bytesRead > 0; bytesRead = fStream.read(buffer)) {
-        ByteString data = ByteString.copyFrom(buffer, 0, bytesRead);
-        responseObserver.onNext(ArtifactChunk.newBuilder().setData(data).build());
+    try {
+      // cache.geFile throws an IllegalArgumentException for unrecognized paths
+      File artifact = cache.getFile(path);
+      try (FileInputStream fStream = new FileInputStream(artifact)) {
+        byte[] buffer = new byte[DEFAULT_CHUNK_SIZE_BYTES];
+        for (int br = fStream.read(buffer); br > 0; br = fStream.read(buffer)) {
+          ByteString data = ByteString.copyFrom(buffer, 0, br);
+          responseObserver.onNext(ArtifactChunk.newBuilder().setData(data).build());
+        }
+        responseObserver.onCompleted();
       }
-      responseObserver.onCompleted();
-    } catch (FileNotFoundException e) {
+    } catch (FileNotFoundException | IllegalArgumentException e) {
       responseObserver.onError(
           Status.INVALID_ARGUMENT
               .withDescription(String.format("No such artifact %s", name))
