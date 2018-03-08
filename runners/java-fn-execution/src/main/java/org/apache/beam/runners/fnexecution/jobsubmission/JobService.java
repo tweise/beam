@@ -122,8 +122,10 @@ public class JobService extends JobServiceGrpc.JobServiceImplBase implements FnS
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     } catch (StatusRuntimeException e) {
+      LOG.warn("Encountered Status Exception", e);
       responseObserver.onError(e);
     } catch (Exception e) {
+      LOG.error("Encountered Unexpected Exception", e);
       responseObserver.onError(Status.INTERNAL.withCause(e).asException());
     }
   }
@@ -145,6 +147,7 @@ public class JobService extends JobServiceGrpc.JobServiceImplBase implements FnS
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     } catch (Exception e) {
+      LOG.error("Encountered Unexpected Exception", e);
       responseObserver.onError(Status.INTERNAL.withCause(e).asException());
     }
   }
@@ -166,6 +169,7 @@ public class JobService extends JobServiceGrpc.JobServiceImplBase implements FnS
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     } catch (Exception e) {
+      LOG.error("Encountered Unexpected Exception", e);
       responseObserver.onError(Status.INTERNAL.withCause(e).asException());
     }
   }
@@ -186,6 +190,7 @@ public class JobService extends JobServiceGrpc.JobServiceImplBase implements FnS
         invocation.addStateObserver(stateObserver);
       }
     } catch (Exception e) {
+      LOG.error("Encountered Unexpected Exception", e);
       responseObserver.onError(Status.INTERNAL.withCause(e).asException());
     }
   }
@@ -217,6 +222,7 @@ public class JobService extends JobServiceGrpc.JobServiceImplBase implements FnS
         invocation.addMessageObserver(messageObserver);
       }
     } catch (Exception e) {
+      LOG.error("Encountered Unexpected Exception", e);
       responseObserver.onError(Status.INTERNAL.withCause(e).asException());
     }
   }
