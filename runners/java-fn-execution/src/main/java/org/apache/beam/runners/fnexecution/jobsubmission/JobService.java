@@ -2,6 +2,7 @@ package org.apache.beam.runners.fnexecution.jobsubmission;
 
 
 import com.google.common.collect.ImmutableList;
+import com.google.protobuf.Struct;
 import io.grpc.Status;
 import io.grpc.StatusException;
 import io.grpc.StatusRuntimeException;
@@ -27,6 +28,8 @@ import org.apache.beam.runners.fnexecution.FnService;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactStagingService;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactStagingServiceProvider;
+import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,18 +61,30 @@ public class JobService extends JobServiceGrpc.JobServiceImplBase implements FnS
       PrepareJobRequest request,
       StreamObserver<PrepareJobResponse> responseObserver) {
     try {
-      LOG.trace("{} {}", PrepareJobResponse.class.getSimpleName(), request);
+      LOG.trace("{} {}", PrepareJobRequest.class.getSimpleName(), request);
       // insert preparation
       String preparationId =
           String.format("%s_%d", request.getJobName(), ThreadLocalRandom.current().nextInt());
       GrpcFnServer<ArtifactStagingService> stagingService =
           artifactStagingServiceProvider.forJob(preparationId);
+      Struct pipelineOptions = request.getPipelineOptions();
+      LOG.trace("PIPELINE OPTIONS {} {}", pipelineOptions.getClass(), pipelineOptions);
+      if (pipelineOptions == null) {
+        LOG.trace("PIPELINE OPTIONS IS NULL");
+        throw new NullPointerException("Encountered null pipeline options.");
+            /*
+        LOG.debug("Encountered null pipeline options.  Using default.");
+        pipelineOptions = Struct.getDefaultInstance();
+        */
+      } else {
+        LOG.trace("PIPELINE OPTIONS IS NOT NULL");
+      }
       JobPreparation preparation =
           JobPreparation
               .builder()
               .setId(preparationId)
               .setPipeline(request.getPipeline())
-              .setOptions(request.getPipelineOptions())
+              .setOptions(pipelineOptions)
               .setStagingService(stagingService)
               .build();
       JobPreparation previous = preparations.putIfAbsent(preparationId, preparation);

@@ -12,6 +12,7 @@ import org.apache.beam.runners.fnexecution.jobsubmission.JobInvoker;
 import org.apache.beam.runners.fnexecution.jobsubmission.JobPreparation;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.options.PipelineOptionsFactory;
 
 /**
  * Job Invoker for the {@link FlinkRunner}.
@@ -32,7 +33,11 @@ public class FlinkJobInvoker implements JobInvoker {
       throws IOException {
     String invocationId =
         String.format("%s_%d", preparation.id(), ThreadLocalRandom.current().nextInt());
-    PipelineOptions options = PipelineOptionsTranslation.fromProto(preparation.options());
+    // TODO: handle empty struct intelligently
+    // PipelineOptions options = PipelineOptionsTranslation.fromProto(preparation.options());
+    PipelineOptions options = PipelineOptionsFactory.create();
+    options.setRunner(FlinkRunner.class);
+
     Pipeline pipeline = PipelineTranslation.fromProto(preparation.pipeline());
     FlinkRunner runner = FlinkRunner.fromOptions(options);
     ArtifactSource artifactSource = preparation.stagingService().getService().createAccessor();
