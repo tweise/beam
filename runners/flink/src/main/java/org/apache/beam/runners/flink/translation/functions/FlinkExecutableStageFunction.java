@@ -27,6 +27,7 @@ import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.execution.EnvironmentSession;
 import org.apache.beam.runners.flink.execution.FlinkArtifactSource;
@@ -38,6 +39,7 @@ import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
+import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.flink.api.common.functions.RichMapPartitionFunction;
 import org.apache.flink.configuration.Configuration;
@@ -64,11 +66,12 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
   public void open(Configuration parameters) throws Exception {
     ExecutableStage stage = ExecutableStage.fromPTransform(transform, components);
     SdkHarnessManager manager = SingletonSdkHarnessManager.getInstance();
+    Struct options = PipelineOptionsTranslation.toProto(PipelineOptionsFactory.create());
     ProvisionApi.ProvisionInfo provisionInfo = ProvisionApi.ProvisionInfo.newBuilder()
         // TODO: Set this from job metadata.
         .setJobId("job-id")
         .setWorkerId(getRuntimeContext().getTaskNameWithSubtasks())
-        .setPipelineOptions(Struct.newBuilder().build())
+        .setPipelineOptions(options)
         .build();
     RunnerApi.Environment environment = RunnerApi.Environment.newBuilder()
         // TODO: Set this from transform metadata.
