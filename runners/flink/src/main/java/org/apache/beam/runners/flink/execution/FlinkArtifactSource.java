@@ -44,7 +44,9 @@ public class FlinkArtifactSource implements ArtifactSource {
     File manifest = cache.getFile(path);
     try (BufferedInputStream fStream = new BufferedInputStream(new FileInputStream(manifest))) {
       return Manifest.parseFrom(fStream);
-
+    } catch (FileNotFoundException e) {
+      // if file is not found, return the default (empty) manifest
+      return Manifest.getDefaultInstance();
     }
   }
 
