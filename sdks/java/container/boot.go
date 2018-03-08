@@ -29,6 +29,7 @@ import (
 	"github.com/apache/beam/sdks/go/pkg/beam/artifact"
 	fnpb "github.com/apache/beam/sdks/go/pkg/beam/model/fnexecution_v1"
 	pb "github.com/apache/beam/sdks/go/pkg/beam/model/pipeline_v1"
+	google_protobuf "github.com/golang/protobuf/ptypes/struct"
 	"github.com/apache/beam/sdks/go/pkg/beam/provision"
 	"github.com/apache/beam/sdks/go/pkg/beam/util/execx"
 	"github.com/apache/beam/sdks/go/pkg/beam/util/grpcx"
@@ -76,10 +77,22 @@ func main() {
 		log.Fatalf("Failed to obtain provisioning information: %v", err)
 	}
 	log.Printf("Received provision info: %v", info.GetPipelineOptions())
-	options, err := provision.ProtoToJSON(info.GetPipelineOptions())
-	if err != nil {
-		log.Fatalf("Failed to convert pipeline options: %v", err)
+	if info == nil {
+		info = &fnpb.ProvisionInfo{
+			JobId: "job-id",
+			JobName: "job-name",
+			WorkerId: "worker-id",
+			PipelineOptions: &google_protobuf.Struct{
+				Fields: make(map[string]*google_protobuf.Value),
+			},
+			ResourceLimits: &fnpb.Resources{},
+		}
 	}
+	//options, err := provision.ProtoToJSON(info.GetPipelineOptions())
+	//if err != nil {
+	//	log.Fatalf("Failed to convert pipeline options: %v", err)
+	//}
+	options := "{}"
 
 	// (2) Retrieve the staged user jars. We ignore any disk limit,
 	// because the staged jars are mandatory.
