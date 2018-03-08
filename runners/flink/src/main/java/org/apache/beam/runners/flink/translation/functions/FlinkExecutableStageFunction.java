@@ -100,6 +100,7 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
             processBundleDescriptor.getRemoteInputDestination();
     SdkHarnessClient.BundleProcessor<InputT> processor = client.getProcessor(
         processBundleDescriptor.getProcessBundleDescriptor(), destination);
+    processor.getRegistrationFuture().toCompletableFuture().get();
     // TODO: Support multiple output receivers and redirect them properly.
     Map<BeamFnApi.Target, Coder<WindowedValue<?>>> outputCoders =
         processBundleDescriptor.getOutputTargetCoders();

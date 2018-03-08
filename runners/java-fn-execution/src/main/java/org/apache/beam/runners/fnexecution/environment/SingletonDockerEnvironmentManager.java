@@ -26,6 +26,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import javax.annotation.concurrent.GuardedBy;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
@@ -37,6 +38,9 @@ import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionServi
 
 /** An {@link EnvironmentManager} that manages a single docker container. Not thread-safe. */
 public class SingletonDockerEnvironmentManager implements EnvironmentManager {
+
+  private static final Logger logger =
+      Logger.getLogger(SingletonDockerEnvironmentManager.class.getName());
 
   public static SingletonDockerEnvironmentManager forServices(
       DockerWrapper docker,
@@ -104,15 +108,10 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
     String provisionEndpoint = provisioningServiceServer.getApiServiceDescriptor().getUrl();
     String controlEndpoint = controlServiceServer.getApiServiceDescriptor().getUrl();
 
-    // HACK: Extract ports and rewrite listen interface on Mac.
-    System.out.println("LOGGING: \"" + loggingEndpoint + '"');
-    System.out.println("ARTIFACT: \"" + artifactEndpoint + '"');
-    System.out.println("PROVISION: \"" + provisionEndpoint + '"');
-    System.out.println("CONTROL: \"" + controlEndpoint + '"');
-    loggingEndpoint = macEndpoint(loggingEndpoint);
-    artifactEndpoint = macEndpoint(artifactEndpoint);
-    provisionEndpoint = macEndpoint(provisionEndpoint);
-    controlEndpoint = macEndpoint(controlEndpoint);
+    logger.info(String.format("Logging endpoint: %s", loggingEndpoint));
+    logger.info(String.format("Artifact endpoint: %s", artifactEndpoint));
+    logger.info(String.format("Provision endpoint: %s", provisionEndpoint));
+    logger.info(String.format("Control endpoint: %s", controlEndpoint));
     List<String> dockerArgs = Arrays.asList(
         "-v",
         String.format("%s:%s", workerPersistentDirectory, semiPersistentDirectory),
@@ -131,7 +130,4 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
         controlServiceServer.getService().getClient());
   }
 
-  private static String macEndpoint(String endpoint) {
-    return endpoint.replace("localhost", "docker.for.mac.host.internal");
-  }
 }
