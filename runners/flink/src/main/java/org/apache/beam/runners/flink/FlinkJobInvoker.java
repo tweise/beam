@@ -13,11 +13,15 @@ import org.apache.beam.runners.fnexecution.jobsubmission.JobPreparation;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Job Invoker for the {@link FlinkRunner}.
  */
 public class FlinkJobInvoker implements JobInvoker {
+  private static final Logger LOG = LoggerFactory.getLogger(FlinkJobInvoker.class);
+
   public static FlinkJobInvoker create(ListeningExecutorService executorService) {
     return new FlinkJobInvoker(executorService);
   }
@@ -33,6 +37,7 @@ public class FlinkJobInvoker implements JobInvoker {
       throws IOException {
     String invocationId =
         String.format("%s_%d", preparation.id(), ThreadLocalRandom.current().nextInt());
+    LOG.debug("Creating new JobInvocation: %s", invocationId);
     // TODO: handle empty struct intelligently
     // PipelineOptions options = PipelineOptionsTranslation.fromProto(preparation.options());
     PipelineOptions options = PipelineOptionsFactory.create();
