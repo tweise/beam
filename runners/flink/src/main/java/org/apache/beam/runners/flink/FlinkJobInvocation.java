@@ -1,11 +1,15 @@
 package org.apache.beam.runners.flink;
 
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import io.grpc.stub.StreamObserver;
 import javax.annotation.Nullable;
+import javax.annotation.Syntax;
+
 import org.apache.beam.model.jobmanagement.v1.JobApi.JobMessage;
 import org.apache.beam.model.jobmanagement.v1.JobApi.JobState.Enum;
 import org.apache.beam.runners.fnexecution.jobsubmission.JobInvocation;
@@ -13,6 +17,9 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Invocation of a Flink Job via {@link FlinkRunner}.
@@ -31,6 +38,8 @@ public class FlinkJobInvocation implements JobInvocation {
   private final ListeningExecutorService executorService;
   private final FlinkRunner runner;
   private final Pipeline pipeline;
+  private Enum jobState;
+  private List<StreamObserver<Enum>> stateObservers;
 
   @Nullable
   private ListenableFuture<PipelineResult> invocationFuture;
@@ -45,22 +54,34 @@ public class FlinkJobInvocation implements JobInvocation {
     this.runner = runner;
     this.pipeline = pipeline;
     this.invocationFuture = null;
+    this.jobState = Enum.STOPPED;
+    this.stateObservers = new ArrayList<>();
   }
 
   @Override
   public void start() {
     LOG.trace("Starting job invocation {}", getId());
     synchronized (this) {
+      setState(Enum.STARTING);
       invocationFuture = executorService.submit(() -> runner.run(pipeline));
-      Futures.catching(
+      setState(Enum.RUNNING);
+      Futures.addCallback(
           invocationFuture,
-          Exception.class,
-          e -> {
-            String message = String.format("Error during job invocation %s.", getId());
-            LOG.error(message, e);
-            return null;
+          new FutureCallback<PipelineResult>() {
+            @Override
+            public void onSuccess(@Nullable PipelineResult pipelineResult) {
+              setState(Enum.DONE);
+            }
+
+            @Override
+            public void onFailure(Throwable throwable) {
+              String message = String.format("Error during job invocation %s.", getId());
+              LOG.error(message, throwable);
+              setState(Enum.FAILED);
+            }
           },
-          executorService);
+          executorService
+      );
     }
   }
 
@@ -80,19 +101,25 @@ public class FlinkJobInvocation implements JobInvocation {
   }
 
   @Override
-  public Enum getState() {
-    LOG.warn("getState() not yet implemented.");
-    return Enum.UNSPECIFIED;
+  public synchronized Enum getState() {
+      return this.jobState;
   }
 
   @Override
-  public void addStateObserver(StreamObserver<Enum> stateStreamObserver) {
-    LOG.warn("addStateObserver() not yet implemented.");
+  public synchronized void addStateObserver(StreamObserver<Enum> stateStreamObserver) {
     stateStreamObserver.onNext(getState());
+    stateObservers.add(stateStreamObserver);
   }
 
   @Override
-  public void addMessageObserver(StreamObserver<JobMessage> messageStreamObserver) {
+  public synchronized void addMessageObserver(StreamObserver<JobMessage> messageStreamObserver) {
     LOG.warn("addMessageObserver() not yet implemented.");
+  }
+
+  private synchronized void setState(Enum state) {
+    this.jobState = state;
+    for (StreamObserver<Enum> observer : stateObservers) {
+      observer.onNext(state);
+    }
   }
 }
