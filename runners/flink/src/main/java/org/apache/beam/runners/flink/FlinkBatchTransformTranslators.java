@@ -34,11 +34,11 @@ import javax.annotation.Nullable;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.CombineTranslation;
 import org.apache.beam.runners.core.construction.CreatePCollectionViewTranslation;
+import org.apache.beam.runners.core.construction.ExecutableStageTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.ParDoTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.ReadTranslation;
-import org.apache.beam.runners.core.construction.SdkComponents;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.functions.FlinkDoFnFunction;
@@ -699,20 +699,18 @@ class FlinkBatchTransformTranslators {
               WindowedValue.getFullCoder(
                   output.getCoder(),
                   output.getWindowingStrategy().getWindowFn().windowCoder()));
-      RunnerApi.PTransform transformProto;
+      RunnerApi.ExecutableStagePayload stagePayload;
       try {
-        // The ExecutableStage PTransform is self-contained.
-        transformProto = PTransformTranslation.toProto(
-            context.getCurrentTransform(),
-            Collections.emptyList(),
-            SdkComponents.create());
+        stagePayload =
+            ExecutableStageTranslation.getExecutableStagePayload(context.getCurrentTransform());
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
+      @SuppressWarnings("unchecked")
       RunnerApi.Components components = PipelineTranslation.toProto(
           context.getCurrentTransform().getPipeline()).getComponents();
       FlinkExecutableStageFunction<InputT, OutputT> function =
-          new FlinkExecutableStageFunction<>(transformProto, components);
+          new FlinkExecutableStageFunction<>(stagePayload, components);
       DataSet<WindowedValue<InputT>> inputDataSet =
           context.getInputDataSet(context.getInput(transform));
       DataSet<WindowedValue<OutputT>> outputDataset =

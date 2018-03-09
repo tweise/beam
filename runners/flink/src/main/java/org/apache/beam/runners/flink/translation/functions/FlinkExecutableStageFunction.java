@@ -53,22 +53,22 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
   private static final Logger logger =
       Logger.getLogger(FlinkExecutableStageFunction.class.getName());
 
-  private final RunnerApi.PTransform transform;
+  private final RunnerApi.ExecutableStagePayload payload;
   private final RunnerApi.Components components;
 
   private transient EnvironmentSession session;
   private transient SdkHarnessClient client;
   private transient ProcessBundleDescriptors.SimpleProcessBundleDescriptor processBundleDescriptor;
 
-  public FlinkExecutableStageFunction(RunnerApi.PTransform transform,
+  public FlinkExecutableStageFunction(RunnerApi.ExecutableStagePayload payload,
       RunnerApi.Components components) {
-    this.transform = transform;
+    this.payload = payload;
     this.components = components;
   }
 
   @Override
   public void open(Configuration parameters) throws Exception {
-    ExecutableStage stage = ExecutableStage.fromPTransform(transform, components);
+    ExecutableStage stage = ExecutableStage.fromPayload(payload, components);
     SdkHarnessManager manager = SingletonSdkHarnessManager.getInstance();
     Struct options = PipelineOptionsTranslation.toProto(PipelineOptionsFactory.create());
     ProvisionApi.ProvisionInfo provisionInfo = ProvisionApi.ProvisionInfo.newBuilder()
