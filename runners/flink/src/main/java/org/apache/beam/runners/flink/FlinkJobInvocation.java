@@ -1,6 +1,7 @@
 package org.apache.beam.runners.flink;
 
 
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import io.grpc.stub.StreamObserver;
@@ -51,6 +52,15 @@ public class FlinkJobInvocation implements JobInvocation {
     LOG.trace("Starting job invocation {}", getId());
     synchronized (this) {
       invocationFuture = executorService.submit(() -> runner.run(pipeline));
+      Futures.catching(
+          invocationFuture,
+          Exception.class,
+          e -> {
+            String message = String.format("Error during job invocation %s.", getId());
+            LOG.error(message, e);
+            return null;
+          },
+          executorService);
     }
   }
 

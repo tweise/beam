@@ -35,18 +35,24 @@ public class FlinkJobInvoker implements JobInvoker {
   @Override
   public JobInvocation invoke(JobPreparation preparation, @Nullable String artifactToken)
       throws IOException {
+    LOG.debug("Invoking job preparation {}", preparation.id());
     String invocationId =
         String.format("%s_%d", preparation.id(), ThreadLocalRandom.current().nextInt());
-    LOG.debug("Creating new JobInvocation: %s", invocationId);
     // TODO: handle empty struct intelligently
+
+    LOG.trace("Parsing pipeline options");
     // PipelineOptions options = PipelineOptionsTranslation.fromProto(preparation.options());
     PipelineOptions options = PipelineOptionsFactory.create();
     options.setRunner(FlinkRunner.class);
 
+    LOG.trace("Translating pipeline from proto");
     Pipeline pipeline = PipelineTranslation.fromProto(preparation.pipeline());
+
+    LOG.trace("Creating flink runner");
     FlinkRunner runner = FlinkRunner.fromOptions(options);
     ArtifactSource artifactSource = preparation.stagingService().getService().createAccessor();
     runner.setArtifactSource(artifactSource);
+
     return FlinkJobInvocation.create(invocationId, executorService, runner, pipeline);
   }
 }
