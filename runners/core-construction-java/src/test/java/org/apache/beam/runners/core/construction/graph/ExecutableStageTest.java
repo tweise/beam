@@ -85,10 +85,10 @@ public class ExecutableStageTest {
     assertThat(stagePTransform.getOutputsCount(), equalTo(1));
     assertThat(stagePTransform.getInputsMap(), hasValue("input.out"));
     assertThat(stagePTransform.getInputsCount(), equalTo(1));
-    assertThat(stagePTransform.getSubtransformsList(), contains("pt"));
 
     ExecutableStagePayload payload = ExecutableStagePayload.parseFrom(
         stagePTransform.getSpec().getPayload());
+    assertThat(payload.getTransformsList(), contains("pt"));
     assertThat(ExecutableStage.fromPayload(payload, components), equalTo(stage));
   }
 
@@ -151,10 +151,10 @@ public class ExecutableStageTest {
     assertThat(ptransform.getSpec().getUrn(), equalTo(ExecutableStage.URN));
     assertThat(ptransform.getInputsMap().values(), containsInAnyOrder("impulse.out"));
     assertThat(ptransform.getOutputsMap().values(), emptyIterable());
-    assertThat(ptransform.getSubtransformsList(), contains("parDo", "window"));
 
     ExecutableStagePayload payload = ExecutableStagePayload.parseFrom(
         ptransform.getSpec().getPayload());
+    assertThat(payload.getTransformsList(), contains("parDo", "window"));
     ExecutableStage desered = ExecutableStage.fromPayload(payload, components);
     assertThat(desered, equalTo(subgraph));
   }

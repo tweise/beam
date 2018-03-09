@@ -128,7 +128,7 @@ public class FusedPipelineTest implements Serializable {
               "All %s consumed by %s must be produced before it",
               PCollection.class.getSimpleName(), fusedProto.getRootTransformIds(i)),
           producedPCollections,
-          containsInAnyOrder(rootTransform.getInputsMap().values().toArray(new String[0])));
+          hasItems(rootTransform.getInputsMap().values().toArray(new String[0])));
       for (String consumed : consumedPCollections) {
         assertThat(
             String.format(
