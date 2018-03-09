@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.protobuf.Struct;
 import java.util.Map;
+import java.util.logging.Logger;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.Endpoints;
@@ -48,6 +49,9 @@ import org.apache.flink.util.Collector;
 /** ExecutableStage operator. */
 public class FlinkExecutableStageFunction<InputT, OutputT> extends
     RichMapPartitionFunction<WindowedValue<InputT>, WindowedValue<OutputT>> {
+
+  private static final Logger logger =
+      Logger.getLogger(FlinkExecutableStageFunction.class.getName());
 
   private final RunnerApi.PTransform transform;
   private final RunnerApi.Components components;
@@ -82,8 +86,10 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
     session = manager.getSession(provisionInfo, environment, artifactSource);
     Endpoints.ApiServiceDescriptor dataEndpoint = session.getDataServiceDescriptor();
     client = session.getClient();
+    logger.info(String.format("Data endpoint: %s", dataEndpoint.getUrl()));
     processBundleDescriptor =
         ProcessBundleDescriptors.fromExecutableStage("1", stage, components, dataEndpoint);
+    logger.info(String.format("Process bundle descriptor: %s", processBundleDescriptor));
   }
 
   @Override
