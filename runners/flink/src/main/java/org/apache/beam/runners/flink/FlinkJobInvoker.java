@@ -4,6 +4,8 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import java.io.IOException;
 import java.util.concurrent.ThreadLocalRandom;
 import javax.annotation.Nullable;
+
+import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
@@ -39,14 +41,30 @@ public class FlinkJobInvoker implements JobInvoker {
     String invocationId =
         String.format("%s_%d", preparation.id(), ThreadLocalRandom.current().nextInt());
     // TODO: handle empty struct intelligently
-
     LOG.trace("Parsing pipeline options");
     // PipelineOptions options = PipelineOptionsTranslation.fromProto(preparation.options());
     PipelineOptions options = PipelineOptionsFactory.create();
     options.setRunner(FlinkRunner.class);
 
     LOG.trace("Translating pipeline from proto");
-    Pipeline pipeline = PipelineTranslation.fromProto(preparation.pipeline());
+    // TODO(axelmagn): remove this hack once python pipeline is working
+    RunnerApi.Pipeline origPipeline = preparation.pipeline();
+    RunnerApi.Environment hackEnv =
+        RunnerApi.Environment
+            .newBuilder()
+            .setUrl("gcr.io/google.com/hadoop-cloud-dev/beam/python")
+            .build();
+    RunnerApi.Components hackComponents =
+        RunnerApi.Components
+            .newBuilder(origPipeline.getComponents())
+            .putEnvironments("", hackEnv)
+            .build();
+    RunnerApi.Pipeline hackPipeline =
+        RunnerApi.Pipeline
+            .newBuilder(origPipeline)
+            .setComponents(hackComponents)
+            .build();
+    Pipeline pipeline = PipelineTranslation.fromProto(hackPipeline);
 
     LOG.trace("Creating flink runner");
     FlinkRunner runner = FlinkRunner.fromOptions(options);
