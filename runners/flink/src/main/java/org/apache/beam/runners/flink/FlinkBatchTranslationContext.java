@@ -20,6 +20,7 @@ package org.apache.beam.runners.flink;
 import com.google.common.collect.Iterables;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.TransformInputs;
 import org.apache.beam.runners.flink.translation.types.CoderTypeInformation;
 import org.apache.beam.sdk.coders.Coder;
@@ -54,14 +55,17 @@ class FlinkBatchTranslationContext {
 
   private final ExecutionEnvironment env;
   private final PipelineOptions options;
+  private final RunnerApi.Components components;
 
   private AppliedPTransform<?, ?, ?> currentTransform;
 
   // ------------------------------------------------------------------------
 
-  public FlinkBatchTranslationContext(ExecutionEnvironment env, PipelineOptions options) {
+  public FlinkBatchTranslationContext(ExecutionEnvironment env, PipelineOptions options,
+      RunnerApi.Components components) {
     this.env = env;
     this.options = options;
+    this.components = components;
     this.dataSets = new HashMap<>();
     this.broadcastDataSets = new HashMap<>();
 
@@ -80,6 +84,10 @@ class FlinkBatchTranslationContext {
 
   public PipelineOptions getPipelineOptions() {
     return options;
+  }
+
+  public RunnerApi.Components getComponents() {
+    return components;
   }
 
   @SuppressWarnings("unchecked")

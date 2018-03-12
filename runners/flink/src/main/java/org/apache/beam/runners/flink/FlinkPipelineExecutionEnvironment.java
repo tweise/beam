@@ -129,19 +129,22 @@ class FlinkPipelineExecutionEnvironment {
     this.flinkBatchEnv = null;
     this.flinkStreamEnv = null;
 
+    RunnerApi.Pipeline pipelineProto;
     // Serialize and rehydrate pipeline to make sure we only depend serialized transforms.
     try {
-      pipeline = PipelineTranslation.fromProto(PipelineTranslation.toProto(pipeline));
+      pipelineProto = PipelineTranslation.toProto(pipeline);
+      pipeline = PipelineTranslation.fromProto(pipelineProto);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
 
     if (options.getUsePortableRunner()) {
+      LOG.info("Using portability layer");
       // NOTE: Because the pipeline fuser only operates on and returns protos, we do another round
       // trip here.
       // Unfused pipeline proto.
       pipeline.replaceAll(ImmutableList.of(JavaReadViaImpulse.boundedOverride()));
-      RunnerApi.Pipeline pipelineProto = PipelineTranslation.toProto(pipeline);
+      pipelineProto = PipelineTranslation.toProto(pipeline);
       RunnerApi.Components components = pipelineProto.getComponents();
       // Fused pipeline proto.
       pipelineProto = GreedyPipelineFuser.fuse(pipelineProto).toPipeline(components);
@@ -151,6 +154,10 @@ class FlinkPipelineExecutionEnvironment {
         throw new RuntimeException(e);
       }
     }
+    // TODO: Components cannot be correctly reconstructed from the rehydrated pipeline. We need
+    // access to the original components in order to reconstruct ExecutableStages from
+    // ExecutableStagePayloads.
+    RunnerApi.Components components = pipelineProto.getComponents();
 
     PipelineTranslationOptimizer optimizer =
         new PipelineTranslationOptimizer(TranslationMode.BATCH, options);
@@ -167,7 +174,7 @@ class FlinkPipelineExecutionEnvironment {
       translator = new FlinkStreamingPipelineTranslator(flinkRunner, flinkStreamEnv, options);
     } else {
       this.flinkBatchEnv = createBatchExecutionEnvironment();
-      translator = new FlinkBatchPipelineTranslator(flinkBatchEnv, options);
+      translator = new FlinkBatchPipelineTranslator(flinkBatchEnv, options, components);
     }
 
     translator.translate(pipeline);

@@ -18,6 +18,9 @@
 
 package org.apache.beam.runners.core.construction.graph;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
+import com.google.common.base.Preconditions;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -139,13 +142,22 @@ public interface ExecutableStage {
    */
   static ExecutableStage fromPayload(ExecutableStagePayload payload, Components components) {
     Environment environment = payload.getEnvironment();
-    PCollectionNode input = PipelineNode.pCollection(payload.getInput(),
-        components.getPcollectionsOrThrow(payload.getInput()));
+    PCollection inputCollection = components.getPcollectionsOrDefault(payload.getInput(), null);
+    checkArgument(inputCollection != null, "Invalid PCollection id: %s", payload.getInput());
+    PCollectionNode input = PipelineNode.pCollection(payload.getInput(), inputCollection);
     List<PTransformNode> transforms = payload.getTransformsList().stream()
-        .map(id -> PipelineNode.pTransform(id, components.getTransformsOrThrow(id)))
+        .map(id -> {
+          PTransform transform = components.getTransformsOrDefault(id, null);
+          checkArgument(transform != null, "Invalid transform id: %s", id);
+          return PipelineNode.pTransform(id, transform);
+        })
         .collect(Collectors.toList());
     List<PCollectionNode> outputs = payload.getOutputsList().stream()
-        .map(id -> PipelineNode.pCollection(id, components.getPcollectionsOrThrow(id)))
+        .map(id -> {
+          PCollection collection = components.getPcollectionsOrDefault(id, null);
+          checkArgument(collection != null, "Invalid PCollection id: %s", id);
+          return PipelineNode.pCollection(id, collection);
+        })
         .collect(Collectors.toList());
     return ImmutableExecutableStage.of(environment, input, transforms, outputs);
   }
