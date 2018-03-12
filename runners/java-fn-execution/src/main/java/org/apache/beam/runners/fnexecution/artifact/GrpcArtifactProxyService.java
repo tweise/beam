@@ -40,6 +40,7 @@ public class GrpcArtifactProxyService
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     } catch (Exception e) {
+      LOGGER.warn("Error retrieving manifest", e);
       responseObserver.onError(
           Status.INTERNAL
               .withDescription("Could not retrieve manifest.")
@@ -52,7 +53,15 @@ public class GrpcArtifactProxyService
   public void getArtifact(
       ArtifactApi.GetArtifactRequest request,
       StreamObserver<ArtifactApi.ArtifactChunk> responseObserver) {
-    artifactSource.getArtifact(request.getName(), responseObserver);
+    try {
+      artifactSource.getArtifact(request.getName(), responseObserver);
+    } catch (Exception e) {
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription("Could not retrieve artifact.")
+              .withCause(e)
+              .asException());
+    }
   }
 
   @Override

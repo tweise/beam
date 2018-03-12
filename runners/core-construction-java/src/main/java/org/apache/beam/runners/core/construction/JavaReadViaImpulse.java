@@ -147,9 +147,8 @@ public class JavaReadViaImpulse {
    * this case. It is usually safe to depend on coded representation here because we only compare
    * objects on bundle commit, which compares serializations of the same object instance.
    *
-   * <p>
-   * BoundedSources are generally not used as PCollection elements, so we do not expose this coder
-   * for wider use.
+   * <p>BoundedSources are generally not used as PCollection elements, so we do not expose this
+   * coder for wider use.
    */
   @VisibleForTesting
   static class BoundedSourceCoder<T> extends CustomCoder<BoundedSource<T>> {
@@ -160,7 +159,8 @@ public class JavaReadViaImpulse {
     }
 
     @Override
-    public void encode(BoundedSource<T> value, OutputStream outStream) throws CoderException, IOException {
+    public void encode(BoundedSource<T> value, OutputStream outStream)
+        throws CoderException, IOException {
       coder.encode(value, outStream);
     }
 

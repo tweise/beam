@@ -22,9 +22,11 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
+import java.util.logging.Logger;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
@@ -34,6 +36,9 @@ import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionServi
 
 /** An {@link EnvironmentManager} that manages a single docker container. Not thread-safe. */
 public class SingletonDockerEnvironmentManager implements EnvironmentManager {
+
+  private static final Logger logger =
+      Logger.getLogger(SingletonDockerEnvironmentManager.class.getName());
 
   public static SingletonDockerEnvironmentManager forServices(
       DockerWrapper docker,
@@ -91,29 +96,36 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
       throws IOException, TimeoutException, InterruptedException {
     // TODO: Generate environment id correctly.
     String environmentId = Long.toString(-123);
-    Path workerPersistentDirectory = Files.createTempDirectory("worker_persistent_directory");
-    Path semiPersistentDirectory = Files.createTempDirectory("semi_persistent_dir");
+    Path workerPersistentDirectory = Files.createTempDirectory(Paths.get("/tmp"), "worker_persistent_directory");
+    Path semiPersistentDirectory = Files.createTempDirectory(Paths.get("/tmp"), "semi_persistent_dir");
+    //Path semiPersistentDirectory = Paths.get("/tmp");
     String containerImage = environment.getUrl();
     // TODO: The default service address will not work for Docker for Mac.
     String loggingEndpoint = loggingServiceServer.getApiServiceDescriptor().getUrl();
     String artifactEndpoint = retrievalServiceServer.getApiServiceDescriptor().getUrl();
     String provisionEndpoint = provisioningServiceServer.getApiServiceDescriptor().getUrl();
     String controlEndpoint = controlServiceServer.getApiServiceDescriptor().getUrl();
-    List<String> args = Arrays.asList(
+
+    logger.info(String.format("Logging endpoint: %s", loggingEndpoint));
+    logger.info(String.format("Artifact endpoint: %s", artifactEndpoint));
+    logger.info(String.format("Provision endpoint: %s", provisionEndpoint));
+    logger.info(String.format("Control endpoint: %s", controlEndpoint));
+    List<String> dockerArgs = Arrays.asList(
         "-v",
-        String.format("%s:%S", workerPersistentDirectory, semiPersistentDirectory),
+        String.format("%s:%s", workerPersistentDirectory, semiPersistentDirectory),
         // TODO: This needs to be special-cased for Mac.
-        "--network=host",
-        containerImage,
+        "--network=host");
+    List<String> sdkHarnessArgs = Arrays.asList(
         String.format("--id=%s", environmentId),
         String.format("--logging_endpoint=%s", loggingEndpoint),
         String.format("--artifact_endpoint=%s", artifactEndpoint),
         String.format("--provision_endpoint=%s", provisionEndpoint),
         String.format("--control_endpoint=%s", controlEndpoint),
         String.format("--semi_persist_dir=%s", semiPersistentDirectory));
-    String containerId = docker.runImage(containerImage, args);
+    String containerId = docker.runImage(containerImage, dockerArgs, sdkHarnessArgs);
     System.out.println("GOT ID: " + containerId);
     return DockerContainerEnvironment.create(docker, environment, containerId,
         controlServiceServer.getService().getClient());
   }
+
 }

@@ -153,7 +153,7 @@ public class GrpcDataService extends BeamFnDataGrpc.BeamFnDataImplBase
         outputLocation.getTarget());
     try {
       return BeamFnDataBufferingOutboundObserver.forLocation(
-          outputLocation, coder, connectedClient.get(3, TimeUnit.MINUTES).getOutboundObserver());
+          outputLocation, coder, connectedClient.get(30, TimeUnit.MINUTES).getOutboundObserver());
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException(e);

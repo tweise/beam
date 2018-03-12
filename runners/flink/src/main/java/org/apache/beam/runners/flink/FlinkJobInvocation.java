@@ -1,15 +1,13 @@
 package org.apache.beam.runners.flink;
 
-
-import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import io.grpc.stub.StreamObserver;
+import java.util.ArrayList;
+import java.util.List;
 import javax.annotation.Nullable;
-import javax.annotation.Syntax;
-
 import org.apache.beam.model.jobmanagement.v1.JobApi.JobMessage;
 import org.apache.beam.model.jobmanagement.v1.JobApi.JobState.Enum;
 import org.apache.beam.runners.fnexecution.jobsubmission.JobInvocation;
@@ -17,9 +15,6 @@ import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Invocation of a Flink Job via {@link FlinkRunner}.

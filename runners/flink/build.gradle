@@ -95,11 +95,13 @@ def createValidatesRunnerTask(Map m) {
     group = "Verification"
     def runnerType = config.streaming ? "streaming" : "batch"
     description = "Validates the ${runnerType} runner"
-    def pipelineOptions = JsonOutput.toJson(["--runner=TestFlinkRunner", "--streaming=${config.streaming}"])
+    //def pipelineOptions = JsonOutput.toJson(["--runner=TestFlinkRunner", "--streaming=${config.streaming}"])
+    def pipelineOptions = JsonOutput.toJson(["--runner=TestFlinkRunner", "--streaming=${config.streaming}", "--usePortableRunner=true"])
     systemProperty "beamTestPipelineOptions", pipelineOptions
     classpath = configurations.validatesRunner
     testClassesDirs = files(project(":sdks:java:core").sourceSets.test.output.classesDirs)
     maxParallelForks 4
+    jvmArgs "-Xdebug", "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005"
     if (config.streaming) {
       useJUnit {
         includeCategories 'org.apache.beam.sdk.testing.ValidatesRunner'

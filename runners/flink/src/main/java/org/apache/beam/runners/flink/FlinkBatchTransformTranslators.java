@@ -20,6 +20,7 @@ package org.apache.beam.runners.flink;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.IOException;
@@ -30,13 +31,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import javax.annotation.Nullable;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.CombineTranslation;
 import org.apache.beam.runners.core.construction.CreatePCollectionViewTranslation;
+import org.apache.beam.runners.core.construction.ExecutableStageTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.ParDoTranslation;
+import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.ReadTranslation;
+import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.functions.FlinkDoFnFunction;
+import org.apache.beam.runners.flink.translation.functions.FlinkExecutableStageFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkMergingNonShuffleReduceFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkMultiOutputPruningFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkPartialReduceFunction;
@@ -124,6 +130,8 @@ class FlinkBatchTransformTranslators {
     TRANSLATORS.put(PTransformTranslation.PAR_DO_TRANSFORM_URN, new ParDoTranslatorBatch());
 
     TRANSLATORS.put(PTransformTranslation.READ_TRANSFORM_URN, new ReadSourceTranslatorBatch());
+
+    TRANSLATORS.put(ExecutableStage.URN, new ExecutableStageTranslatorBatch());
   }
 
 
@@ -670,6 +678,48 @@ class FlinkBatchTransformTranslators {
               collection.getName());
 
       context.setOutputDataSet(collection, pruningOperator);
+    }
+  }
+
+  private static class ExecutableStageTranslatorBatch<InputT,
+      OutputT> implements FlinkBatchPipelineTranslator.BatchTransformTranslator<
+      PTransform<PCollection<InputT>, PCollection<OutputT>>> {
+
+    @Override
+    public void translateNode(PTransform<PCollection<InputT>, PCollection<OutputT>> transform,
+        FlinkBatchTranslationContext context) {
+      // TODO: Assert that all inputs and outputs are PCollections.
+      // TODO: Assert only a single output collection.
+      @SuppressWarnings("unchecked")
+      PCollection<OutputT> output = (PCollection<OutputT>)
+          Iterables.getOnlyElement(context.getCurrentTransform().getOutputs().values());
+      output.getCoder();
+      TypeInformation<WindowedValue<OutputT>> typeInformation =
+          new CoderTypeInformation<>(
+              WindowedValue.getFullCoder(
+                  output.getCoder(),
+                  output.getWindowingStrategy().getWindowFn().windowCoder()));
+      RunnerApi.ExecutableStagePayload stagePayload;
+      try {
+        stagePayload =
+            ExecutableStageTranslation.getExecutableStagePayload(context.getCurrentTransform());
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+      @SuppressWarnings("unchecked")
+      RunnerApi.Components components = PipelineTranslation.toProto(
+          context.getCurrentTransform().getPipeline()).getComponents();
+      FlinkExecutableStageFunction<InputT, OutputT> function =
+          new FlinkExecutableStageFunction<>(stagePayload, components);
+      DataSet<WindowedValue<InputT>> inputDataSet =
+          context.getInputDataSet(context.getInput(transform));
+      DataSet<WindowedValue<OutputT>> outputDataset =
+          new MapPartitionOperator<>(
+              inputDataSet,
+              typeInformation,
+              function,
+              transform.getName());
+      context.setOutputDataSet(context.getOutput(transform), outputDataset);
     }
   }
 

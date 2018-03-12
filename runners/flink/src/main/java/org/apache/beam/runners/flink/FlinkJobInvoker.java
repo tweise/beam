@@ -4,9 +4,7 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import java.io.IOException;
 import java.util.concurrent.ThreadLocalRandom;
 import javax.annotation.Nullable;
-
 import org.apache.beam.model.pipeline.v1.RunnerApi;
-import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.jobsubmission.JobInvocation;
@@ -40,7 +38,7 @@ public class FlinkJobInvoker implements JobInvoker {
     LOG.debug("Invoking job preparation {}", preparation.id());
     String invocationId =
         String.format("%s_%d", preparation.id(), ThreadLocalRandom.current().nextInt());
-    // TODO: handle empty struct intelligently
+    // TODO(axelmagn): handle empty struct intelligently
     LOG.trace("Parsing pipeline options");
     // PipelineOptions options = PipelineOptionsTranslation.fromProto(preparation.options());
     PipelineOptions options = PipelineOptionsFactory.create();

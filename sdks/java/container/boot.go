@@ -75,6 +75,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to obtain provisioning information: %v", err)
 	}
+	log.Printf("Received provision info: %v", info.GetPipelineOptions())
+	if info.GetPipelineOptions() == nil {
+		log.Fatalf("Nil pipeline options from info: %v", info)
+	}
 	options, err := provision.ProtoToJSON(info.GetPipelineOptions())
 	if err != nil {
 		log.Fatalf("Failed to convert pipeline options: %v", err)

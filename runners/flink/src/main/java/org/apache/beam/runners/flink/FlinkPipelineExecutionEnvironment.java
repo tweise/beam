@@ -19,6 +19,7 @@ package org.apache.beam.runners.flink;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
 import com.google.common.util.concurrent.SettableFuture;
 import io.grpc.stub.StreamObserver;
@@ -30,7 +31,10 @@ import java.util.List;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactMetadata;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.runners.core.construction.JavaReadViaImpulse;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
+import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.flink.api.common.JobExecutionResult;
@@ -130,6 +134,22 @@ class FlinkPipelineExecutionEnvironment {
       pipeline = PipelineTranslation.fromProto(PipelineTranslation.toProto(pipeline));
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+
+    if (options.getUsePortableRunner()) {
+      // NOTE: Because the pipeline fuser only operates on and returns protos, we do another round
+      // trip here.
+      // Unfused pipeline proto.
+      pipeline.replaceAll(ImmutableList.of(JavaReadViaImpulse.boundedOverride()));
+      RunnerApi.Pipeline pipelineProto = PipelineTranslation.toProto(pipeline);
+      RunnerApi.Components components = pipelineProto.getComponents();
+      // Fused pipeline proto.
+      pipelineProto = GreedyPipelineFuser.fuse(pipelineProto).toPipeline(components);
+      try {
+        pipeline = PipelineTranslation.fromProto(pipelineProto);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
 
     PipelineTranslationOptimizer optimizer =
