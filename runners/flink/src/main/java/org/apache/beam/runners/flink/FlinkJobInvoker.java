@@ -41,9 +41,11 @@ public class FlinkJobInvoker implements JobInvoker {
         String.format("%s_%d", preparation.id(), ThreadLocalRandom.current().nextInt());
     // TODO(axelmagn): handle empty struct intelligently
     LOG.trace("Parsing pipeline options");
+    /*
     FlinkPipelineOptions options =
         (FlinkPipelineOptions) PipelineOptionsTranslation.fromProto(preparation.options());
-    // FlinkPipelineOptions options = (FlinkPipelineOptions) PipelineOptionsFactory.create();
+        */
+    FlinkPipelineOptions options = PipelineOptionsFactory.as(FlinkPipelineOptions.class);
     options.setRunner(FlinkRunner.class);
     options.setUsePortableRunner(true);
 
