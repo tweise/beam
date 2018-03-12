@@ -18,6 +18,7 @@
 package org.apache.beam.runners.flink;
 
 import javax.annotation.Nullable;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -44,8 +45,9 @@ class FlinkBatchPipelineTranslator extends FlinkPipelineTranslator {
 
   private int depth = 0;
 
-  public FlinkBatchPipelineTranslator(ExecutionEnvironment env, PipelineOptions options) {
-    this.batchContext = new FlinkBatchTranslationContext(env, options);
+  public FlinkBatchPipelineTranslator(ExecutionEnvironment env, PipelineOptions options,
+      RunnerApi.Components components) {
+    this.batchContext = new FlinkBatchTranslationContext(env, options, components);
   }
 
   @Override

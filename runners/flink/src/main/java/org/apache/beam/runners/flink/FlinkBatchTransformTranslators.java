@@ -715,11 +715,8 @@ class FlinkBatchTransformTranslators {
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
-      @SuppressWarnings("unchecked")
-      RunnerApi.Components components = PipelineTranslation.toProto(
-          context.getCurrentTransform().getPipeline()).getComponents();
       FlinkExecutableStageFunction<InputT, OutputT> function =
-          new FlinkExecutableStageFunction<>(stagePayload, components);
+          new FlinkExecutableStageFunction<>(stagePayload, context.getComponents());
       DataSet<WindowedValue<InputT>> inputDataSet =
           context.getInputDataSet(context.getInput(transform));
       DataSet<WindowedValue<OutputT>> outputDataset =
