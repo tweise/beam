@@ -31,6 +31,8 @@ public class LocalArtifactSource implements ArtifactSource {
     File manifestFile = location.getManifestFile();
     try (FileInputStream fileInputStream = new FileInputStream(manifestFile)) {
       return ArtifactApi.Manifest.parseFrom(fileInputStream);
+    } catch (FileNotFoundException e) {
+      return ArtifactApi.Manifest.getDefaultInstance();
     }
   }
 
