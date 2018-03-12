@@ -86,6 +86,7 @@ import org.apache.beam.sdk.values.WindowingStrategy;
 import org.apache.flink.api.common.functions.RichGroupReduceFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.DataSet;
+import org.apache.flink.api.java.io.DiscardingOutputFormat;
 import org.apache.flink.api.java.operators.DataSource;
 import org.apache.flink.api.java.operators.FlatMapOperator;
 import org.apache.flink.api.java.operators.GroupCombineOperator;
@@ -688,17 +689,25 @@ class FlinkBatchTransformTranslators {
     @Override
     public void translateNode(PTransform<PCollection<InputT>, PCollection<OutputT>> transform,
         FlinkBatchTranslationContext context) {
-      // TODO: Assert that all inputs and outputs are PCollections.
-      // TODO: Assert only a single output collection.
-      @SuppressWarnings("unchecked")
-      PCollection<OutputT> output = (PCollection<OutputT>)
-          Iterables.getOnlyElement(context.getCurrentTransform().getOutputs().values());
-      output.getCoder();
-      TypeInformation<WindowedValue<OutputT>> typeInformation =
-          new CoderTypeInformation<>(
-              WindowedValue.getFullCoder(
-                  output.getCoder(),
-                  output.getWindowingStrategy().getWindowFn().windowCoder()));
+
+      TypeInformation<WindowedValue<OutputT>> typeInformation;
+
+      if (context.getCurrentTransform().getOutputs().size() == 0) {
+        typeInformation = new CoderTypeInformation(VoidCoder.of());
+      } else {
+        // TODO: Assert that all inputs and outputs are PCollections.
+        // TODO: Assert only a single output collection.
+        @SuppressWarnings("unchecked")
+        PCollection<OutputT> output = (PCollection<OutputT>)
+            Iterables.getOnlyElement(context.getCurrentTransform().getOutputs().values());
+        output.getCoder();
+        typeInformation =
+            new CoderTypeInformation<>(
+                WindowedValue.getFullCoder(
+                    output.getCoder(),
+                    output.getWindowingStrategy().getWindowFn().windowCoder()));
+      }
+
       RunnerApi.ExecutableStagePayload stagePayload;
       try {
         stagePayload =
@@ -719,7 +728,11 @@ class FlinkBatchTransformTranslators {
               typeInformation,
               function,
               transform.getName());
-      context.setOutputDataSet(context.getOutput(transform), outputDataset);
+      if (context.getCurrentTransform().getOutputs().size() > 0) {
+        context.setOutputDataSet(context.getOutput(transform), outputDataset);
+      } else {
+        outputDataset.output(new DiscardingOutputFormat());
+      }
     }
   }
 
