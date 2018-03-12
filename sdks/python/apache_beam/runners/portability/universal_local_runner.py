@@ -160,8 +160,16 @@ class UniversalLocalRunner(runner.PipelineRunner):
           pcoll.coder_id = proto_context.coders.get_id(coder)
       proto_context.coders.populate_map(proto_pipeline.components.coders)
 
-    options = {k: v for k, v in pipeline._options.get_all_options().iteritems()
+    # TODO: Define URNs for options.
+    options = {'beam:option:' + k + ':v1': v
+               for k, v in pipeline._options.get_all_options().iteritems()
                if v is not None}
+    # TODO: Stop hard-coding these, either define them as concepts within
+    # the Python SDK and use them, all for arbitrary options to pass through,
+    # or remove them from being required during execution.
+    options['beam:option:app_name:v1'] = 'ApacheBeamIsTheBest'
+    options['beam:option:runner:v1'] = 'org.apache.beam.runners.flink.FlinkRunner'
+    options['beam:option:use_portable_runner:v1'] = 'true'
 
     job_service = self._get_job_service()
     prepare_response = job_service.Prepare(
