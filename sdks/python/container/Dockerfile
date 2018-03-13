@@ -80,11 +80,9 @@ RUN \
     # Check that the fast implementation of protobuf is used.
     python -c "from google.protobuf.internal import api_implementation; assert api_implementation._default_implementation_type == 'cpp'; print 'Verified fast protobuf used.'"
 
-ADD target/apache-beam.tar.gz /opt/apache/beam/tars/
-
-RUN \
-    cd /opt/apache/beam/tars/* && \
-    python setup.py install
+COPY target/apache-beam.tar.gz /opt/apache/beam/tars/
+RUN pip install /opt/apache/beam/tars/apache-beam.tar.gz[gcp] && \
+    rm /opt/apache/beam/tars/apache-beam.tar.gz
 
 ADD target/linux_amd64/boot /opt/apache/beam/
 

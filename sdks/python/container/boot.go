@@ -92,16 +92,16 @@ func main() {
 
 	dir := filepath.Join(*semiPersistDir, "staged")
 
-	files, err := artifact.Materialize(ctx, *artifactEndpoint, dir)
+	_, err = artifact.Materialize(ctx, *artifactEndpoint, dir)
 	if err != nil {
 		log.Fatalf("Failed to retrieve staged files: %v", err)
 	}
 
 	// TODO(herohde): the packages to install should be specified explicitly. It
 	// would also be possible to install the SDK in the Dockerfile.
-	if setupErr := installSetupPackages(files, dir); setupErr != nil {
-		log.Fatalf("Failed to install SDK: %v", setupErr)
-	}
+	// if setupErr := installSetupPackages(files, dir); setupErr != nil {
+	// 	log.Fatalf("Failed to install SDK: %v", setupErr)
+	// }
 
 	// (3) Invoke python
 
