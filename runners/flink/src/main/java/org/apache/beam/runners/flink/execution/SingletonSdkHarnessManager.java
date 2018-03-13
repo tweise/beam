@@ -19,6 +19,7 @@
 package org.apache.beam.runners.flink.execution;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.net.HostAndPort;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.concurrent.ExecutorService;
@@ -40,6 +41,8 @@ public class SingletonSdkHarnessManager implements  SdkHarnessManager {
     static final SingletonSdkHarnessManager INSTANCE = SingletonSdkHarnessManager.create();
   }
 
+  private static final String DOCKER_FOR_MAC_HOST = "docker.for.mac.host.internal";
+
   /** Get the singleton instance of the harness manager. */
   public static SingletonSdkHarnessManager getInstance() {
     return LazyHolder.INSTANCE;
@@ -55,8 +58,9 @@ public class SingletonSdkHarnessManager implements  SdkHarnessManager {
             .setNameFormat("flink-runner-sdk-harness")
             .setDaemon(true)
             .build();
+    ServerFactory serverFactory = getServerFactory();
     return new SingletonSdkHarnessManager(
-        ServerFactory.createDefault(),
+        serverFactory,
         Executors.newCachedThreadPool(threadFactory),
         JobResourceManagerFactory.create()
     );
@@ -94,4 +98,34 @@ public class SingletonSdkHarnessManager implements  SdkHarnessManager {
 
     return jobResourceManager.getSession();
   }
+
+  private static ServerFactory getServerFactory() {
+    switch (getPlatform()) {
+      case LINUX:
+        return ServerFactory.createDefault();
+      case MAC:
+        return ServerFactory.createWithUrlFactory((host, port) ->
+          HostAndPort.fromParts(DOCKER_FOR_MAC_HOST, port).toString());
+      default:
+        throw new RuntimeException("Platform not supported");
+    }
+  }
+
+  private enum Platform {
+    MAC,
+    LINUX,
+    OTHER,
+  }
+
+  private static Platform getPlatform() {
+    String osName = System.getProperty("os.name").toLowerCase();
+    // TODO: Make this more robust?
+    if (osName.startsWith("mac")) {
+      return Platform.MAC;
+    } else if (osName.startsWith("linux")) {
+      return Platform.LINUX;
+    }
+    return Platform.OTHER;
+  }
+
 }

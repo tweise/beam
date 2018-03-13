@@ -39,7 +39,15 @@ public abstract class ServerFactory {
    * Create a default {@link ServerFactory}.
    */
   public static ServerFactory createDefault() {
-    return new InetSocketAddressServerFactory();
+    return new InetSocketAddressServerFactory((host, port) ->
+        HostAndPort.fromParts(host, port).toString());
+  }
+
+  /**
+   * Create a {@link ServerFactory} that uses the given url factory.
+   */
+  public static ServerFactory createWithUrlFactory(UrlFactory urlFactory) {
+    return new InetSocketAddressServerFactory(urlFactory);
   }
 
   /**
@@ -62,7 +70,12 @@ public abstract class ServerFactory {
    * <p>The server is created listening any open port on "localhost".
    */
   public static class InetSocketAddressServerFactory extends ServerFactory {
-    private InetSocketAddressServerFactory() {}
+
+    private final UrlFactory urlFactory;
+
+    private InetSocketAddressServerFactory(UrlFactory urlFactory) {
+      this.urlFactory = urlFactory;
+    }
 
     @Override
     public Server allocatePortAndCreate(
@@ -70,11 +83,7 @@ public abstract class ServerFactory {
         throws IOException {
       InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
       Server server = createServer(service, address);
-      //apiServiceDescriptor.setUrl(
-      //    HostAndPort.fromParts(address.getHostName(), server.getPort()).toString());
-      // HACK: Set for Mac in-line.
-      apiServiceDescriptor.setUrl(
-          HostAndPort.fromParts("docker.for.mac.host.internal", server.getPort()).toString());
+      apiServiceDescriptor.setUrl(urlFactory.createUrl(address.getHostName(), server.getPort()));
       return server;
     }
 
@@ -103,5 +112,10 @@ public abstract class ServerFactory {
       return server;
     }
 
+  }
+
+  @FunctionalInterface
+  public interface UrlFactory {
+    String createUrl(String address, int port);
   }
 }
