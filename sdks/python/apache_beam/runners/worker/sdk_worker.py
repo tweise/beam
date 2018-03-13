@@ -231,6 +231,7 @@ class GrpcStateHandler(object):
 
   def start(self):
     self._done = False
+    return # TODO(axelmagn): remove me!
 
     def request_iter():
       while True:
@@ -242,6 +243,7 @@ class GrpcStateHandler(object):
     responses = self._state_stub.State(request_iter())
 
     def pull_responses():
+      return # TODO(axelmagn): remove me!
       try:
         for response in responses:
           self._responses_by_id[response.id].set(response)
@@ -257,9 +259,11 @@ class GrpcStateHandler(object):
 
   def done(self):
     self._done = True
+    return # TODO(axelmagn): remove me!
     self._requests.put(self._DONE)
 
   def blocking_get(self, state_key, instruction_reference):
+    raise NotImplementedError # TODO(axelmagn): remove me!
     response = self._blocking_request(
         beam_fn_api_pb2.StateRequest(
             instruction_reference=instruction_reference,
@@ -270,6 +274,7 @@ class GrpcStateHandler(object):
     return response.get.data
 
   def blocking_append(self, state_key, data, instruction_reference):
+    raise NotImplementedError # TODO(axelmagn): remove me!
     self._blocking_request(
         beam_fn_api_pb2.StateRequest(
             instruction_reference=instruction_reference,
@@ -277,6 +282,7 @@ class GrpcStateHandler(object):
             append=beam_fn_api_pb2.StateAppendRequest(data=data)))
 
   def blocking_clear(self, state_key, instruction_reference):
+    raise NotImplementedError # TODO(axelmagn): remove me!
     self._blocking_request(
         beam_fn_api_pb2.StateRequest(
             instruction_reference=instruction_reference,
