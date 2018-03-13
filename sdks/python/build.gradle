@@ -25,6 +25,10 @@ apply plugin: "base"
 task test {}
 check.dependsOn test
 
+configurations {
+  main
+}
+
 task setupTest {
   doLast {
     exec {
@@ -97,3 +101,12 @@ task testPython (dependsOn: 'setupTest') {
   }
 }
 test.dependsOn testPython
+
+def sdist_file = file('dist/apache-beam-2.5.0.dev0.tar.gz')
+
+artifacts {
+  main(sdist_file) {
+    name 'apache-beam-python-sdist'
+    builtBy sdist
+  }
+}
