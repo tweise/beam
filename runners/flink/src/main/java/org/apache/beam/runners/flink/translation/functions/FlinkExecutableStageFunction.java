@@ -138,9 +138,9 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
     Map<BeamFnApi.Target,
         SdkHarnessClient.RemoteOutputReceiver<?>> receiverMap;
     if (outputTarget == null) {
-      receiverMap = ImmutableMap.of(outputTarget, mainOutputReceiver);
-    } else {
       receiverMap = ImmutableMap.of();
+    } else {
+      receiverMap = ImmutableMap.of(outputTarget, mainOutputReceiver);
     }
 
     SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap);
