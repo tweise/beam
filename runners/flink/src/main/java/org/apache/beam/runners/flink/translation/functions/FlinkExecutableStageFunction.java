@@ -111,29 +111,30 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
     Map<BeamFnApi.Target, Coder<WindowedValue<?>>> outputCoders =
         processBundleDescriptor.getOutputTargetCoders();
     BeamFnApi.Target outputTarget = null;
+    SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>> mainOutputReceiver = null;
     if (outputCoders.size() > 0) {
       outputTarget = Iterables.getOnlyElement(outputCoders.keySet());
-    }
-    Coder<?> outputCoder = Iterables.getOnlyElement(outputCoders.values());
-    SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>> mainOutputReceiver =
-        new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>>() {
-          @Override
-          public Coder<WindowedValue<OutputT>> getCoder() {
-            @SuppressWarnings("unchecked")
-            Coder<WindowedValue<OutputT>> result = (Coder<WindowedValue<OutputT>>) outputCoder;
-            return result;
-          }
+      Coder<?> outputCoder = Iterables.getOnlyElement(outputCoders.values());
+      mainOutputReceiver =
+          new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>>() {
+            @Override
+            public Coder<WindowedValue<OutputT>> getCoder() {
+              @SuppressWarnings("unchecked")
+              Coder<WindowedValue<OutputT>> result = (Coder<WindowedValue<OutputT>>) outputCoder;
+              return result;
+            }
 
-          @Override
-          public FnDataReceiver<WindowedValue<OutputT>> getReceiver() {
-            return new FnDataReceiver<WindowedValue<OutputT>>() {
-              @Override
-              public void accept(WindowedValue<OutputT> input) throws Exception {
-                collector.collect(input);
-              }
-            };
-          }
-        };
+            @Override
+            public FnDataReceiver<WindowedValue<OutputT>> getReceiver() {
+              return new FnDataReceiver<WindowedValue<OutputT>>() {
+                @Override
+                public void accept(WindowedValue<OutputT> input) throws Exception {
+                  collector.collect(input);
+                }
+              };
+            }
+          };
+    }
     Map<BeamFnApi.Target,
         SdkHarnessClient.RemoteOutputReceiver<?>> receiverMap;
     if (outputTarget == null) {
