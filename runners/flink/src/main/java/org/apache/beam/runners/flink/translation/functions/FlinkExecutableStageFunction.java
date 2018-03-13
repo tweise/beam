@@ -110,7 +110,10 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
     // TODO: Support multiple output receivers and redirect them properly.
     Map<BeamFnApi.Target, Coder<WindowedValue<?>>> outputCoders =
         processBundleDescriptor.getOutputTargetCoders();
-    BeamFnApi.Target outputTarget = Iterables.getOnlyElement(outputCoders.keySet());
+    BeamFnApi.Target outputTarget = null;
+    if (outputCoders.size() > 0) {
+      outputTarget = Iterables.getOnlyElement(outputCoders.keySet());
+    }
     Coder<?> outputCoder = Iterables.getOnlyElement(outputCoders.values());
     SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>> mainOutputReceiver =
         new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>>() {
@@ -131,8 +134,15 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
             };
           }
         };
-    SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(
-        ImmutableMap.of(outputTarget, mainOutputReceiver));
+    Map<BeamFnApi.Target,
+        SdkHarnessClient.RemoteOutputReceiver<?>> receiverMap;
+    if (outputTarget == null) {
+      receiverMap = ImmutableMap.of(outputTarget, mainOutputReceiver);
+    } else {
+      receiverMap = ImmutableMap.of();
+    }
+
+    SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap);
     try (CloseableFnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver()) {
       for (WindowedValue<InputT> value : input) {
         inputReceiver.accept(value);
