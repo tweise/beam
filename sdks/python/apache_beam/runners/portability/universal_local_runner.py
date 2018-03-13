@@ -169,7 +169,7 @@ class UniversalLocalRunner(runner.PipelineRunner):
     # or remove them from being required during execution.
     options['beam:option:app_name:v1'] = 'ApacheBeamIsTheBest'
     options['beam:option:runner:v1'] = 'org.apache.beam.runners.flink.FlinkRunner'
-    options['beam:option:use_portable_runner:v1'] = 'true'
+    options['beam:option:experiments:v1'] = ['beam_fn_api']
 
     job_service = self._get_job_service()
     prepare_response = job_service.Prepare(

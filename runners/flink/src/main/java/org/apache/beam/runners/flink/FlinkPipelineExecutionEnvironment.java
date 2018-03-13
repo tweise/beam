@@ -37,6 +37,7 @@ import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.options.ExperimentalOptions;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.java.CollectionEnvironment;
 import org.apache.flink.api.java.ExecutionEnvironment;
@@ -138,7 +139,7 @@ class FlinkPipelineExecutionEnvironment {
       throw new RuntimeException(e);
     }
 
-    if (options.getUsePortableRunner()) {
+    if (ExperimentalOptions.hasExperiment(options, "beam_fn_api")) {
       LOG.info("Using portability layer");
       // NOTE: Because the pipeline fuser only operates on and returns protos, we do another round
       // trip here.
