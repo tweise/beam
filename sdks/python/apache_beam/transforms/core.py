@@ -1346,57 +1346,13 @@ class GroupByKey(PTransform):
   The implementation here is used only when run on the local direct runner.
   """
 
-  class ReifyWindows(DoFn):
-
-    def process(self, element, window=DoFn.WindowParam,
-                timestamp=DoFn.TimestampParam):
-      try:
-        k, v = element
-      except TypeError:
-        raise TypeCheckError('Input to GroupByKey must be a PCollection with '
-                             'elements compatible with KV[A, B]')
-
-      return [(k, WindowedValue(v, timestamp, [window]))]
-
-    def infer_output_type(self, input_type):
-      key_type, value_type = trivial_inference.key_value_types(input_type)
-      return Iterable[KV[key_type, typehints.WindowedValue[value_type]]]
+  def infer_output_type(self, input_type):
+    key_type, value_type = trivial_inference.key_value_types(input_type)
+    return KV[key_type, Iterable[value_type]]
 
   def expand(self, pcoll):
-    # This code path is only used in the local direct runner.  For Dataflow
-    # runner execution, the GroupByKey transform is expanded on the service.
-    input_type = pcoll.element_type
-    if input_type is not None:
-      # Initialize type-hints used below to enforce type-checking and to pass
-      # downstream to further PTransforms.
-      key_type, value_type = trivial_inference.key_value_types(input_type)
-      # Enforce the input to a GBK has a KV element type.
-      pcoll.element_type = KV[key_type, value_type]
-      typecoders.registry.verify_deterministic(
-          typecoders.registry.get_coder(key_type),
-          'GroupByKey operation "%s"' % self.label)
-
-      reify_output_type = KV[key_type, typehints.WindowedValue[value_type]]
-      gbk_input_type = (
-          KV[key_type, Iterable[typehints.WindowedValue[value_type]]])
-      gbk_output_type = KV[key_type, Iterable[value_type]]
-
-      # pylint: disable=bad-continuation
-      return (pcoll
-              | 'ReifyWindows' >> (ParDo(self.ReifyWindows())
-                 .with_output_types(reify_output_type))
-              | 'GroupByKey' >> (_GroupByKeyOnly()
-                 .with_input_types(reify_output_type)
-                 .with_output_types(gbk_input_type))
-              | ('GroupByWindow' >> _GroupAlsoByWindow(pcoll.windowing)
-                 .with_input_types(gbk_input_type)
-                 .with_output_types(gbk_output_type)))
-    else:
-      # The input_type is None, run the default
-      return (pcoll
-              | 'ReifyWindows' >> ParDo(self.ReifyWindows())
-              | 'GroupByKey' >> _GroupByKeyOnly()
-              | 'GroupByWindow' >> _GroupAlsoByWindow(pcoll.windowing))
+    self._check_pcollection(pcoll)
+    return pvalue.PCollection(pcoll.pipeline)
 
   def to_runner_api_parameter(self, unused_context):
     return common_urns.GROUP_BY_KEY_TRANSFORM, None
