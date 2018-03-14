@@ -404,7 +404,7 @@ def create(factory, transform_id, transform_proto, grpc_port, consumers):
       consumers,
       factory.counter_factory,
       factory.state_sampler,
-      factory.get_only_output_coder(transform_proto),
+      factory.get_coder(grpc_port.coder_id),
       input_target=target,
       data_channel=factory.data_channel_factory.create_data_channel(grpc_port))
 
@@ -422,7 +422,7 @@ def create(factory, transform_id, transform_proto, grpc_port, consumers):
       factory.counter_factory,
       factory.state_sampler,
       # TODO(robertwb): Perhaps this could be distinct from the input coder?
-      factory.get_only_input_coder(transform_proto),
+      factory.get_coder(grpc_port.coder_id),
       target=target,
       data_channel=factory.data_channel_factory.create_data_channel(grpc_port))
 
