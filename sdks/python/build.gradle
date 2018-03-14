@@ -102,7 +102,7 @@ task testPython (dependsOn: 'setupTest') {
 }
 test.dependsOn testPython
 
-def sdist_file = file('dist/apache-beam-2.5.0.dev0.tar.gz')
+def sdist_file = file('build/apache-beam-2.5.0.dev0.tar.gz')
 
 artifacts {
   main(sdist_file) {
