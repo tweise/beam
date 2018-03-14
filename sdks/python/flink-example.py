@@ -4,6 +4,8 @@ from apache_beam.portability import common_urns
 from apache_beam.runners.portability import universal_local_runner
 from apache_beam.transforms.window import GlobalWindows
 
+import sys
+
 runner = universal_local_runner.UniversalLocalRunner(
     runner_api_address="localhost:3000")
 
@@ -30,14 +32,10 @@ class Impulse(beam.PTransform):
     def from_runner_api_parameter(unused_parameter, unused_context):
       return Impulse()
 
-def doIt(x):
-    print("We got {}".format(x))
-    return x
-
 with beam.Pipeline(runner=runner) as p:
 # with beam.Pipeline(options=PipelineOptions()) as p:
     (p
     | Impulse().with_output_types(bytes)
     # | beam.Create([b'']).with_output_types(bytes)
     | beam.FlatMap(lambda x: [1, 2, 3]).with_input_types(bytes).with_output_types(int)
-    | beam.Map(lambda x: doIt(x)).with_input_types(int))
+    | beam.Map(lambda x: sys.stdout.write("Got {}".format(x)) or x).with_input_types(int).with_output_types(int))
