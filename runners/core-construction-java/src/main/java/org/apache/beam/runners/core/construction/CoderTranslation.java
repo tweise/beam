@@ -26,6 +26,8 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -36,6 +38,9 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.CoderException;
+import org.apache.beam.sdk.coders.LengthPrefixCoder;
+import org.apache.beam.sdk.testing.FlattenWithHeterogeneousCoders;
 import org.apache.beam.sdk.util.SerializableUtils;
 
 /** Converts to and from Beam Runner API representations of {@link Coder Coders}. */
@@ -43,6 +48,8 @@ public class CoderTranslation {
   // This URN says that the coder is just a UDF blob this SDK understands
   // TODO: standardize such things
   public static final String JAVA_SERIALIZED_CODER_URN = "urn:beam:coders:javasdk:0.1";
+
+  private static final String LENGTH_PREFIX_CODER_TYPE = "beam:coder:length_prefix:v1";
 
   @VisibleForTesting
   static final BiMap<Class<? extends Coder>, String> KNOWN_CODER_URNS = loadCoderURNs();
@@ -80,6 +87,9 @@ public class CoderTranslation {
 
   public static RunnerApi.Coder toProto(
       Coder<?> coder, SdkComponents components) throws IOException {
+    if (coder instanceof FooCoder) {
+      return ((FooCoder) coder).getOriginalCoder();
+    }
     if (KNOWN_CODER_URNS.containsKey(coder.getClass())) {
       return toKnownCoder(coder, components);
     }
@@ -143,6 +153,10 @@ public class CoderTranslation {
     }
     Class<? extends Coder> coderType = KNOWN_CODER_URNS.inverse().get(coderUrn);
     CoderTranslator<?> translator = KNOWN_TRANSLATORS.get(coderType);
+    if (translator == null) {
+      // HACK: Assume unknown coders are SDK coders that should be length-prefixed.
+      return new FooCoder(coder);
+    }
     checkArgument(
         translator != null,
         "Unknown Coder URN %s. Known URNs: %s",
@@ -188,5 +202,38 @@ public class CoderTranslation {
     }
     return translator.fromComponents(
         coderComponents, coder.getSpec().getSpec().getPayload().toByteArray());
+  }
+
+  private static class FooCoder extends Coder<byte[]> {
+    private final Coder<byte[]> coder = LengthPrefixCoder.of(ByteArrayCoder.of());
+    private final RunnerApi.Coder originalCoder;
+
+    FooCoder(RunnerApi.Coder originalCoder) {
+      this.originalCoder = originalCoder;
+    }
+
+    RunnerApi.Coder getOriginalCoder() {
+      return originalCoder;
+    }
+
+    @Override
+    public void encode(byte[] value, OutputStream outStream) throws CoderException, IOException {
+      coder.encode(value, outStream);
+    }
+
+    @Override
+    public byte[] decode(InputStream inStream) throws CoderException, IOException {
+      return coder.decode(inStream);
+    }
+
+    @Override
+    public List<? extends Coder<?>> getCoderArguments() {
+      return null;
+    }
+
+    @Override
+    public void verifyDeterministic() throws NonDeterministicException {
+
+    }
   }
 }
