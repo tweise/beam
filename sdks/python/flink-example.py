@@ -3,6 +3,8 @@ from apache_beam import pvalue
 from apache_beam.portability import common_urns
 from apache_beam.runners.portability import universal_local_runner
 from apache_beam.transforms.window import GlobalWindows
+from apache_beam.typehints import typehints
+import logging
 
 import sys
 
@@ -33,9 +35,8 @@ class Impulse(beam.PTransform):
       return Impulse()
 
 with beam.Pipeline(runner=runner) as p:
-# with beam.Pipeline(options=PipelineOptions()) as p:
     (p
     | Impulse().with_output_types(bytes)
-    # | beam.Create([b'']).with_output_types(bytes)
     | beam.FlatMap(lambda x: [1, 2, 3]).with_input_types(bytes).with_output_types(int)
-    | beam.Map(lambda x: sys.stdout.write("Got {}".format(x)) or x).with_input_types(int).with_output_types(int))
+    | beam.Map(lambda x: logging.info("Got {}".format(x)) or (x, 1)).with_input_types(int).with_output_types(typehints.KV[int, int])
+    | beam.GroupByKey().with_input_types(typehints.KV[int, int]))
