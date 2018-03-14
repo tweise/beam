@@ -30,6 +30,14 @@ class Impulse(beam.PTransform):
     def from_runner_api_parameter(unused_parameter, unused_context):
       return Impulse()
 
-with beam.Pipeline(runner=runner) as p:
-    p | Impulse() | beam.ParDo(lambda: [1, 2, 3]) | beam.Map(lambda x: x*x)
+def doIt(x):
+    print("We got {}".format(x))
+    return x
 
+with beam.Pipeline(runner=runner) as p:
+# with beam.Pipeline(options=PipelineOptions()) as p:
+    (p
+    | Impulse().with_output_types(bytes)
+    # | beam.Create([b'']).with_output_types(bytes)
+    | beam.FlatMap(lambda x: [1, 2, 3]).with_input_types(bytes).with_output_types(int)
+    | beam.Map(lambda x: doIt(x)).with_input_types(int))
