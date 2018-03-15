@@ -37,6 +37,8 @@ class Impulse(beam.PTransform):
 with beam.Pipeline(runner=runner) as p:
     (p
     | Impulse().with_output_types(bytes)
-    | beam.FlatMap(lambda x: [1, 2, 3]).with_input_types(bytes).with_output_types(int)
-    | beam.Map(lambda x: logging.info("Got {}".format(x)) or (x, 1)).with_input_types(int).with_output_types(typehints.KV[int, int])
-    | beam.GroupByKey().with_input_types(typehints.KV[int, int]))
+    | beam.FlatMap(lambda x: ["hello", "world", "hello", "another", "word", "hello", "world"]).with_input_types(bytes).with_output_types(str)
+    | beam.Map(lambda x: logging.info("Got {}".format(x)) or (x, 1)).with_input_types(str).with_output_types(typehints.KV[str, int])
+    | beam.GroupByKey().with_input_types(typehints.KV[str, int]).with_output_types(typehints.KV[str, typehints.Iterable[int]])
+    | beam.Map(lambda x: (x[0], sum(cnt for cnt in x[1]))).with_input_types(typehints.KV[str, typehints.Iterable[int]]).with_output_types(typehints.KV[str, int])
+    | beam.Map(lambda x: logging.info("Got worcount {}".format(x)) or x).with_input_types(typehints.KV[str, int]).with_output_types(typehints.KV[str, int]))
