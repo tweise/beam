@@ -22,6 +22,8 @@ import static org.apache.flink.util.Preconditions.checkState;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.protobuf.Struct;
+import io.netty.util.internal.ThreadLocalRandom;
+import java.math.BigInteger;
 import java.util.Map;
 import java.util.logging.Logger;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
@@ -87,8 +89,9 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
     Endpoints.ApiServiceDescriptor dataEndpoint = session.getDataServiceDescriptor();
     client = session.getClient();
     logger.info(String.format("Data endpoint: %s", dataEndpoint.getUrl()));
+    String id = new BigInteger(32, ThreadLocalRandom.current()).toString(36);
     processBundleDescriptor =
-        ProcessBundleDescriptors.fromExecutableStage("1", stage, components, dataEndpoint);
+        ProcessBundleDescriptors.fromExecutableStage(id, stage, components, dataEndpoint);
     logger.info(String.format("Process bundle descriptor: %s", processBundleDescriptor));
   }
 
