@@ -32,6 +32,8 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 
+import static com.google.common.base.Preconditions.checkState;
+
 /** A {@link Pipeline} which has been separated into collections of executable components. */
 @AutoValue
 public abstract class FusedPipeline {
@@ -78,7 +80,15 @@ public abstract class FusedPipeline {
   private Map<String, PTransform> getTopLevelTransforms(Components base) {
     Map<String, PTransform> topLevelTransforms = new HashMap<>();
     for (PTransformNode runnerExecuted : getRunnerExecutedTransforms()) {
-      topLevelTransforms.put(runnerExecuted.getId(), runnerExecuted.getTransform());
+      PTransform extant = topLevelTransforms.put(
+          runnerExecuted.getId(),
+          runnerExecuted.getTransform());
+      checkState(
+          extant == null,
+          "Transforms with ID %s collided: %s and %s",
+          runnerExecuted.getId(),
+          extant,
+          runnerExecuted.getTransform());
     }
     for (ExecutableStage stage : getFusedStages()) {
       topLevelTransforms.put(
