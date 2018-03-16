@@ -43,29 +43,35 @@ import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.transforms.join.RawUnionValue;
+import org.apache.beam.sdk.util.MoreFutures;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.TupleTag;
 import org.apache.flink.api.common.functions.RichMapPartitionFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.Collector;
 
 /** ExecutableStage operator. */
-public class FlinkExecutableStageFunction<InputT, OutputT> extends
-    RichMapPartitionFunction<WindowedValue<InputT>, WindowedValue<OutputT>> {
+public class FlinkExecutableStageFunction<InputT> extends
+    RichMapPartitionFunction<WindowedValue<InputT>, RawUnionValue> {
 
   private static final Logger logger =
       Logger.getLogger(FlinkExecutableStageFunction.class.getName());
 
   private final RunnerApi.ExecutableStagePayload payload;
   private final RunnerApi.Components components;
+  private final Map<TupleTag<?>, Integer> outputMap;
 
   private transient EnvironmentSession session;
   private transient SdkHarnessClient client;
   private transient ProcessBundleDescriptors.SimpleProcessBundleDescriptor processBundleDescriptor;
 
   public FlinkExecutableStageFunction(RunnerApi.ExecutableStagePayload payload,
-      RunnerApi.Components components) {
+      RunnerApi.Components components,
+      Map<TupleTag<?>, Integer> outputMap) {
     this.payload = payload;
     this.components = components;
+    this.outputMap = outputMap;
   }
 
   @Override
@@ -97,7 +103,7 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
 
   @Override
   public void mapPartition(Iterable<WindowedValue<InputT>> input,
-      Collector<WindowedValue<OutputT>> collector) throws Exception {
+      Collector<RawUnionValue> collector) throws Exception {
     checkState(client != null, "SDK client not prepared");
     checkState(processBundleDescriptor != null,
         "ProcessBundleDescriptor not prepared");
@@ -110,49 +116,67 @@ public class FlinkExecutableStageFunction<InputT, OutputT> extends
     SdkHarnessClient.BundleProcessor<InputT> processor = client.getProcessor(
         processBundleDescriptor.getProcessBundleDescriptor(), destination);
     processor.getRegistrationFuture().toCompletableFuture().get();
-    // TODO: Support multiple output receivers and redirect them properly.
     Map<BeamFnApi.Target, Coder<WindowedValue<?>>> outputCoders =
         processBundleDescriptor.getOutputTargetCoders();
-    BeamFnApi.Target outputTarget = null;
-    SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>> mainOutputReceiver = null;
-    if (outputCoders.size() > 0) {
-      outputTarget = Iterables.getOnlyElement(outputCoders.keySet());
-      Coder<?> outputCoder = Iterables.getOnlyElement(outputCoders.values());
-      mainOutputReceiver =
-          new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<OutputT>>() {
-            @Override
-            public Coder<WindowedValue<OutputT>> getCoder() {
-              @SuppressWarnings("unchecked")
-              Coder<WindowedValue<OutputT>> result = (Coder<WindowedValue<OutputT>>) outputCoder;
-              return result;
-            }
+    ImmutableMap.Builder<BeamFnApi.Target,
+        SdkHarnessClient.RemoteOutputReceiver<?>> receiverBuilder = ImmutableMap.builder();
+    final Object collectorLock = new Object();
+    for (Map.Entry<BeamFnApi.Target, Coder<WindowedValue<?>>> entry : outputCoders.entrySet()) {
+      BeamFnApi.Target target = entry.getKey();
+      Coder<WindowedValue<?>> coder = entry.getValue();
+      SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>> receiver = new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>>() {
+        @Override
+        public Coder<WindowedValue<?>> getCoder() {
+          return coder;
+        }
 
+        @Override
+        public FnDataReceiver<WindowedValue<?>> getReceiver() {
+          return new FnDataReceiver<WindowedValue<?>>() {
             @Override
-            public FnDataReceiver<WindowedValue<OutputT>> getReceiver() {
-              return new FnDataReceiver<WindowedValue<OutputT>>() {
-                @Override
-                public void accept(WindowedValue<OutputT> input) throws Exception {
-                  collector.collect(input);
-                }
-              };
+            public void accept(WindowedValue<?> input) throws Exception {
+              logger.finer(String.format("Receiving value: %s", input));
+              // TODO: Can this be called by multiple threads? Are calls guaranteed to at least be
+              // serial? If not, these calls may need to be synchronized.
+              // TODO: If this needs to be synchronized, consider requiring immutable maps.
+              synchronized (collectorLock) {
+                // TODO: Get the correct output union tag from the corresponding output tag.
+                // Plumb through output tags from process bundle descriptor.
+                // NOTE: The output map is guaranteed to be non-empty at this point, so we can
+                // always grab index 0.
+                // TODO: Plumb through TupleTag <-> Target mappings to get correct union tag here.
+                // For now, assume only one union tag.
+                int unionTag = Iterables.getOnlyElement(outputMap.values());
+                collector.collect(new RawUnionValue(unionTag, input));
+              }
             }
           };
+        }
+      };
+      receiverBuilder.put(target, receiver);
     }
     Map<BeamFnApi.Target,
-        SdkHarnessClient.RemoteOutputReceiver<?>> receiverMap;
-    if (outputTarget == null) {
-      receiverMap = ImmutableMap.of();
-    } else {
-      receiverMap = ImmutableMap.of(outputTarget, mainOutputReceiver);
-    }
+        SdkHarnessClient.RemoteOutputReceiver<?>> receiverMap =
+        receiverBuilder.build();
 
     SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap);
     try (CloseableFnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver()) {
       for (WindowedValue<InputT> value : input) {
+        logger.finer(String.format("Sending value: %s", value));
         inputReceiver.accept(value);
       }
     }
-    bundle.getBundleResponse().toCompletableFuture().get();
+
+    // Await all outputs and active bundle completion. This is necessary because the Flink collector
+    // must not be accessed outside of mapPartition.
+    bundle.getOutputClients().values().forEach(client -> {
+      try {
+        client.awaitCompletion();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    });
+    MoreFutures.get(bundle.getBundleResponse());
   }
 
   @Override
