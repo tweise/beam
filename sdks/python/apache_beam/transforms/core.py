@@ -72,6 +72,8 @@ __all__ = [
     'WindowInto',
     'Flatten',
     'Create',
+    'Impulse',
+    'Reshuffle',
     ]
 
 
@@ -1788,3 +1790,44 @@ class Create(PTransform):
         return self._total_size
 
     return _CreateSource(serialized_values, coder)
+
+class Impulse(PTransform):
+    """Primitive Impulse primitive."""
+
+    def expand(self, pbegin):
+        assert isinstance(pbegin, pvalue.PBegin), (
+                'Input to Impulse transform must be a PBegin but found %s' % pbegin)
+        return pvalue.PCollection(pbegin.pipeline)
+
+    def get_windowing(self, inputs):
+        return Windowing(GlobalWindows())
+
+    def infer_output_type(self, unused_input_type):
+        return bytes
+
+    def to_runner_api_parameter(self, context):
+      assert isinstance(self, Impulse), \
+          "expected instance of Impulse, but got %s" % self.__class__
+      return (common_urns.IMPULSE_TRANSFORM, None)
+
+    @PTransform.register_urn(common_urns.IMPULSE_TRANSFORM, None)
+    def from_runner_api_parameter(unused_parameter, unused_context):
+      return Impulse()
+
+class Reshuffle(PTransform):
+    """Primitive Reshuffle primitive."""
+
+    def expand(self, pbegin):
+        return pvalue.PCollection(pbegin.pipeline)
+
+    def infer_output_type(self, input_type):
+        return input_type
+
+    def to_runner_api_parameter(self, context):
+      assert isinstance(self, Reshuffle), \
+          "expected instance of Reshuffle, but got %s" % self.__class__
+      return common_urns.RESHUFFLE_TRANSFORM, None
+
+    @PTransform.register_urn(common_urns.RESHUFFLE_TRANSFORM, None)
+    def from_runner_api_parameter(unused_parameter, unused_context):
+      return Reshuffle()

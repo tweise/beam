@@ -313,11 +313,12 @@ class FlinkBatchTransformTranslators {
   }
 
   private static class ReshuffleTranslatorBatch<K, InputT>
-      implements FlinkBatchPipelineTranslator.BatchTransformTranslator<Reshuffle<K, InputT>> {
+      implements FlinkBatchPipelineTranslator.BatchTransformTranslator<
+          PTransform<PCollection<KV<K, InputT>>, PCollection<KV<K, InputT>>>> {
 
     @Override
     public void translateNode(
-        Reshuffle<K, InputT> transform,
+        PTransform<PCollection<KV<K, InputT>>, PCollection<KV<K, InputT>>> transform,
         FlinkBatchTranslationContext context) {
 
       DataSet<WindowedValue<KV<K, InputT>>> inputDataSet =

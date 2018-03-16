@@ -144,7 +144,6 @@ class FlinkPipelineExecutionEnvironment {
       // NOTE: Because the pipeline fuser only operates on and returns protos, we do another round
       // trip here.
       // Unfused pipeline proto.
-      pipeline.replaceAll(ImmutableList.of(JavaReadViaImpulse.boundedOverride()));
       pipelineProto = PipelineTranslation.toProto(pipeline);
       RunnerApi.Components components = pipelineProto.getComponents();
       // Fused pipeline proto.
