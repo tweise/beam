@@ -20,7 +20,8 @@ package org.apache.beam.runners.flink;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
-import com.google.common.collect.Iterables;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 import javax.annotation.Nullable;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.CombineTranslation;
@@ -37,12 +39,12 @@ import org.apache.beam.runners.core.construction.CreatePCollectionViewTranslatio
 import org.apache.beam.runners.core.construction.ExecutableStageTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.ParDoTranslation;
-import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.ReadTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.functions.FlinkDoFnFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkExecutableStageFunction;
+import org.apache.beam.runners.flink.translation.functions.FlinkExecutableStagePruningFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkMergingNonShuffleReduceFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkMultiOutputPruningFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkPartialReduceFunction;
@@ -689,24 +691,29 @@ class FlinkBatchTransformTranslators {
     @Override
     public void translateNode(PTransform<PCollection<InputT>, PCollection<OutputT>> transform,
         FlinkBatchTranslationContext context) {
+      // TODO: Fail on stateful DoFns for now.
+      // TODO: Support stateful DoFns by inserting group-by-keys where necessary.
+      // TODO: Fail on splittable DoFns.
+      // TODO: Special-case single outputs to avoid multiplexing PCollections.
 
-      TypeInformation<WindowedValue<OutputT>> typeInformation;
-
-      if (context.getCurrentTransform().getOutputs().size() == 0) {
-        typeInformation = new CoderTypeInformation(VoidCoder.of());
-      } else {
-        // TODO: Assert that all inputs and outputs are PCollections.
-        // TODO: Assert only a single output collection.
-        @SuppressWarnings("unchecked")
-        PCollection<OutputT> output = (PCollection<OutputT>)
-            Iterables.getOnlyElement(context.getCurrentTransform().getOutputs().values());
-        output.getCoder();
-        typeInformation =
-            new CoderTypeInformation<>(
-                WindowedValue.getFullCoder(
-                    output.getCoder(),
-                    output.getWindowingStrategy().getWindowFn().windowCoder()));
+      Map<TupleTag<?>, PValue> outputs = context.getOutputs(transform);
+      BiMap<TupleTag<?>, Integer> outputMap = createOutputMap(outputs.keySet());
+      // Collect all output Coders and create a UnionCoder for our tagged outputs.
+      List<Coder<?>> outputCoders = Lists.newArrayList();
+      // Enforce tuple tag sorting by union tag index.
+      for (TupleTag<?> tag : new TreeMap<>(outputMap.inverse()).values()) {
+        PValue taggedValue = outputs.get(tag);
+        checkState(
+            taggedValue instanceof PCollection,
+            "Within ParDo, got a non-PCollection output %s of type %s",
+            taggedValue,
+            taggedValue.getClass().getSimpleName());
+        PCollection<?> coll = (PCollection<?>) taggedValue;
+        outputCoders.add(coll.getCoder());
       }
+      UnionCoder unionCoder = UnionCoder.of(outputCoders);
+      TypeInformation<RawUnionValue> typeInformation =
+          new CoderTypeInformation<>(unionCoder);
 
       RunnerApi.ExecutableStagePayload stagePayload;
       try {
@@ -715,22 +722,50 @@ class FlinkBatchTransformTranslators {
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
-      FlinkExecutableStageFunction<InputT, OutputT> function =
-          new FlinkExecutableStageFunction<>(stagePayload, context.getComponents());
+      FlinkExecutableStageFunction<InputT> function =
+          new FlinkExecutableStageFunction<>(stagePayload, context.getComponents(),
+              outputMap);
       DataSet<WindowedValue<InputT>> inputDataSet =
           context.getInputDataSet(context.getInput(transform));
-      DataSet<WindowedValue<OutputT>> outputDataset =
-          new MapPartitionOperator<>(
-              inputDataSet,
+      DataSet<RawUnionValue> taggedDataset =
+          new MapPartitionOperator<>(inputDataSet,
               typeInformation,
               function,
               transform.getName());
-      if (context.getCurrentTransform().getOutputs().size() > 0) {
-        context.setOutputDataSet(context.getOutput(transform), outputDataset);
-      } else {
-        outputDataset.output(new DiscardingOutputFormat());
+      for (Entry<TupleTag<?>, PValue> output : outputs.entrySet()) {
+        pruneOutput(taggedDataset, context, outputMap.get(output.getKey()),
+            (PCollection) output.getValue());
+      }
+      if (context.getCurrentTransform().getOutputs().isEmpty()) {
+        // TODO: Is this still necessary?
+        taggedDataset.output(new DiscardingOutputFormat());
       }
     }
+
+    private static <T> void pruneOutput(
+        DataSet<RawUnionValue> taggedDataset,
+        FlinkBatchTranslationContext context,
+        int unionTag,
+        PCollection<T> collection) {
+      TypeInformation<WindowedValue<T>> outputType = context.getTypeInfo(collection);
+      FlinkExecutableStagePruningFunction<T> pruningFunction =
+          new FlinkExecutableStagePruningFunction<>(unionTag);
+      FlatMapOperator<RawUnionValue, WindowedValue<T>> pruningOperator =
+          new FlatMapOperator<>(taggedDataset, outputType, pruningFunction, collection.getName());
+      context.setOutputDataSet(collection, pruningOperator);
+    }
+
+    private static BiMap<TupleTag<?>, Integer> createOutputMap(Iterable<TupleTag<?>> tags) {
+      ImmutableBiMap.Builder<TupleTag<?>, Integer> builder = ImmutableBiMap.builder();
+      int outputIndex = 0;
+      for (TupleTag<?> tag : tags) {
+        builder.put(tag, outputIndex);
+        outputIndex++;
+      }
+      return builder.build();
+    }
+
+
   }
 
   private static class FlattenPCollectionTranslatorBatch<T>
