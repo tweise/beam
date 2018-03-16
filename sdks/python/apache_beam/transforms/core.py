@@ -73,6 +73,7 @@ __all__ = [
     'Flatten',
     'Create',
     'Impulse',
+    'Reshuffle',
     ]
 
 
@@ -1813,3 +1814,20 @@ class Impulse(PTransform):
     def from_runner_api_parameter(unused_parameter, unused_context):
       return Impulse()
 
+class Reshuffle(PTransform):
+    """Primitive Reshuffle primitive."""
+
+    def expand(self, pbegin):
+        return pvalue.PCollection(pbegin.pipeline)
+
+    def infer_output_type(self, input_type):
+        return input_type
+
+    def to_runner_api_parameter(self, context):
+      assert isinstance(self, Reshuffle), \
+          "expected instance of Reshuffle, but got %s" % self.__class__
+      return common_urns.RESHUFFLE_TRANSFORM, None
+
+    @PTransform.register_urn(common_urns.RESHUFFLE_TRANSFORM, None)
+    def from_runner_api_parameter(unused_parameter, unused_context):
+      return Reshuffle()
