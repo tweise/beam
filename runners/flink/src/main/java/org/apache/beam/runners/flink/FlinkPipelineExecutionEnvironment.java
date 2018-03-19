@@ -98,7 +98,7 @@ class FlinkPipelineExecutionEnvironment {
    * a {@link org.apache.flink.api.java.RemoteEnvironment}, depending on the configuration
    * options.
    */
-  private ExecutionEnvironment flinkBatchEnv;
+  protected ExecutionEnvironment flinkBatchEnv;
 
   /**
    * The Flink Streaming execution environment. This is instantiated to either a
