@@ -24,7 +24,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ComparisonChain;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Ordering;
 import com.google.common.graph.MutableNetwork;
 import com.google.common.graph.Network;
 import com.google.common.graph.NetworkBuilder;
@@ -203,6 +205,10 @@ public class QueryablePipeline {
               });
 
   public Iterable<PTransformNode> getTopologicallyOrderedTransforms() {
+    Comparator<PTransformNode> cmp = (left, right) -> ComparisonChain.start()
+        .compare(nodeWeights.getUnchecked(left), nodeWeights.getUnchecked(right))
+        .compare(left.getId(), right.getId())
+        .result();
     return pipelineNetwork
         .nodes()
         .stream()
@@ -210,7 +216,7 @@ public class QueryablePipeline {
         .map(PTransformNode.class::cast)
         .collect(
             Collectors.toCollection(
-                () -> new TreeSet<>(Comparator.comparingLong(nodeWeights::getUnchecked))));
+                () -> new TreeSet<>(cmp)));
   }
 
   /**
