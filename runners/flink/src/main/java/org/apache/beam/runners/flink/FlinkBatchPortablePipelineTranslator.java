@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javassist.bytecode.ByteArray;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
@@ -53,7 +52,6 @@ public class FlinkBatchPortablePipelineTranslator
 
   // Shared between batch and streaming
   interface TranslationContext {
-    FlinkPipelineExecutionEnvironment getFlinkPipelineExecutionEnvironment();
     PipelineOptions getPipelineOptions();
     <T> void addDataSet(String pCollectionId, DataSet<T> dataSet);
     <T> DataSet<T> getDataSetOrThrow(String pCollectionId);
@@ -64,15 +62,12 @@ public class FlinkBatchPortablePipelineTranslator
     ExecutionEnvironment getExecutionEnvironment();
   }
 
-  private abstract class TranslationContextImpl {
+  private abstract class TranslationContextImpl
+      implements TranslationContext {
     private final Map<String, DataSet<?>> dataSets;
-    private final FlinkPipelineExecutionEnvironment env;
     private final PipelineOptions pipelineOptions;
 
-    protected TranslationContextImpl(
-        FlinkPipelineExecutionEnvironment env,
-        PipelineOptions pipelineOptions) {
-      this.env = env;
+    protected TranslationContextImpl(PipelineOptions pipelineOptions) {
       this.pipelineOptions = pipelineOptions;
       dataSets = new HashMap<>();
     }
@@ -95,14 +90,20 @@ public class FlinkBatchPortablePipelineTranslator
     }
   }
 
-  private class BatchTranslationContextImpl extends TranslationContextImpl {
-    private final ExecutionEnvironment env;
+  private class BatchTranslationContextImpl
+      extends TranslationContextImpl
+      implements BatchTranslationContext {
+    private final ExecutionEnvironment executionEnvironment;
     private BatchTranslationContextImpl(
-        FlinkPipelineExecutionEnvironment flinkPipelineExecutionEnvironment,
         PipelineOptions pipelineOptions,
-        ExecutionEnvironment environment) {
-      super(flinkPipelineExecutionEnvironment, pipelineOptions);
-      this.env = environment;
+        ExecutionEnvironment executionEnvironment) {
+      super(pipelineOptions);
+      this.executionEnvironment = executionEnvironment;
+    }
+
+    @Override
+    public ExecutionEnvironment getExecutionEnvironment() {
+      return executionEnvironment;
     }
   }
 
