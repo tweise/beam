@@ -60,6 +60,7 @@ public class FlinkExecutableStageFunction<InputT> extends
 
   private final RunnerApi.ExecutableStagePayload payload;
   private final RunnerApi.Components components;
+  private final RunnerApi.Environment environment;
   private final Map<TupleTag<?>, Integer> outputMap;
 
   private transient EnvironmentSession session;
@@ -68,9 +69,11 @@ public class FlinkExecutableStageFunction<InputT> extends
 
   public FlinkExecutableStageFunction(RunnerApi.ExecutableStagePayload payload,
       RunnerApi.Components components,
+      RunnerApi.Environment environment,
       Map<TupleTag<?>, Integer> outputMap) {
     this.payload = payload;
     this.components = components;
+    this.environment = environment;
     this.outputMap = outputMap;
   }
 
@@ -84,10 +87,6 @@ public class FlinkExecutableStageFunction<InputT> extends
         .setJobId("job-id")
         .setWorkerId(getRuntimeContext().getTaskNameWithSubtasks())
         .setPipelineOptions(options)
-        .build();
-    RunnerApi.Environment environment = RunnerApi.Environment.newBuilder()
-        // TODO: Set this from transform metadata.
-        .setUrl("gcr.io/google.com/hadoop-cloud-dev/beam/python")
         .build();
     ArtifactSource artifactSource =
         CachedArtifactSource.createDefault(getRuntimeContext().getDistributedCache());
