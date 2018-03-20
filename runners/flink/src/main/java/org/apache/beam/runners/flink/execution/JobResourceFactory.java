@@ -18,6 +18,7 @@ import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.logging.LogWriter;
 import org.apache.beam.runners.fnexecution.logging.Slf4jLogWriter;
 import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
+import org.apache.beam.runners.fnexecution.state.GrpcStateService;
 
 /**
  * Factory for resources that are managed by {@link JobResourceManager}.
@@ -69,6 +70,11 @@ public class JobResourceFactory {
   public GrpcFnServer<GrpcDataService> dataService() throws IOException {
     GrpcDataService dataService = GrpcDataService.create(executor);
     return GrpcFnServer.allocatePortAndCreateFor(dataService, serverFactory);
+  }
+
+  public GrpcFnServer<GrpcStateService> stateService() throws IOException {
+    GrpcStateService stateService  = new GrpcStateService();
+    return GrpcFnServer.allocatePortAndCreateFor(stateService, serverFactory);
   }
 
   /** Create a new container manager from artifact source and jobInfo. */

@@ -22,6 +22,7 @@ import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
+import org.apache.beam.runners.fnexecution.state.StateDelegator;
 
 /**
  * A handle to an {@link Environment} managed by a {@link SdkHarnessManager}.
@@ -47,7 +48,17 @@ public interface EnvironmentSession extends AutoCloseable {
   SdkHarnessClient getClient();
 
   /**
+   * Get a {@link StateDelegator} with which to register a StateRequestHandler.
+   */
+  StateDelegator getStateDelegator();
+
+  /**
    * Get a {@link ApiServiceDescriptor} for the data service.
    */
   ApiServiceDescriptor getDataServiceDescriptor();
+
+  /**
+   * Get a {@link ApiServiceDescriptor} for the state service.
+   */
+  ApiServiceDescriptor getStateServiceDescriptor();
 }

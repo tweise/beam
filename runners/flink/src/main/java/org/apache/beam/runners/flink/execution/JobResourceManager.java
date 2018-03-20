@@ -8,6 +8,7 @@ import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentManager;
 import org.apache.beam.runners.fnexecution.environment.RemoteEnvironment;
+import org.apache.beam.runners.fnexecution.state.GrpcStateService;
 
 /**
  * A class that manages the long-lived resources of an individual job.
@@ -39,6 +40,7 @@ public class JobResourceManager {
   @Nullable private RemoteEnvironment remoteEnvironment = null;
   @Nullable private EnvironmentManager containerManager = null;
   @Nullable private GrpcFnServer<GrpcDataService> dataService = null;
+  @Nullable private GrpcFnServer<GrpcStateService> stateService = null;
 
   private JobResourceManager (
       ProvisionApi.ProvisionInfo jobInfo,
@@ -60,8 +62,9 @@ public class JobResourceManager {
         remoteEnvironment.getEnvironment(),
         artifactSource,
         remoteEnvironment.getClient(),
-        dataService.getApiServiceDescriptor()
-    );
+        stateService.getService(),
+        dataService.getApiServiceDescriptor(),
+        stateService.getApiServiceDescriptor());
   }
 
   /**
@@ -71,6 +74,7 @@ public class JobResourceManager {
    */
   public void start() throws Exception {
     dataService = jobResourceFactory.dataService();
+    stateService = jobResourceFactory.stateService();
     containerManager =
         jobResourceFactory.containerManager(artifactSource, jobInfo, dataService.getService());
     remoteEnvironment = containerManager.getEnvironment(environment);
