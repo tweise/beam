@@ -61,7 +61,7 @@ public class FlinkExecutableStageFunction<InputT> extends
   private final RunnerApi.ExecutableStagePayload payload;
   private final RunnerApi.Components components;
   private final RunnerApi.Environment environment;
-  private final Map<TupleTag<?>, Integer> outputMap;
+  private final Map<String, Integer> outputMap;
 
   private transient EnvironmentSession session;
   private transient SdkHarnessClient client;
@@ -70,7 +70,7 @@ public class FlinkExecutableStageFunction<InputT> extends
   public FlinkExecutableStageFunction(RunnerApi.ExecutableStagePayload payload,
       RunnerApi.Components components,
       RunnerApi.Environment environment,
-      Map<TupleTag<?>, Integer> outputMap) {
+      Map<String, Integer> outputMap) {
     this.payload = payload;
     this.components = components;
     this.environment = environment;
