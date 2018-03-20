@@ -5,12 +5,10 @@ import java.io.IOException;
 import java.util.concurrent.ThreadLocalRandom;
 import javax.annotation.Nullable;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
-import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.jobsubmission.JobInvocation;
 import org.apache.beam.runners.fnexecution.jobsubmission.JobInvoker;
 import org.apache.beam.runners.fnexecution.jobsubmission.JobPreparation;
-import org.apache.beam.sdk.Pipeline;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,14 +39,12 @@ public class FlinkJobInvoker implements JobInvoker {
     FlinkPipelineOptions options = PipelineOptionsTranslation.fromProto(preparation.options())
             .as(FlinkPipelineOptions.class);
 
-    LOG.trace("Translating pipeline from proto");
-    Pipeline pipeline = PipelineTranslation.fromProto(preparation.pipeline());
-
-    LOG.trace("Creating flink runner");
-    FlinkRunner runner = FlinkRunner.fromOptions(options);
     ArtifactSource artifactSource = preparation.stagingService().getService().createAccessor();
-    runner.setArtifactSource(artifactSource);
-
-    return FlinkJobInvocation.create(invocationId, executorService, runner, pipeline);
+    return FlinkJobInvocation.create(
+        invocationId,
+        executorService,
+        preparation.pipeline(),
+        options,
+        artifactSource);
   }
 }

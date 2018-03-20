@@ -80,6 +80,12 @@ public class FlinkBatchPortablePipelineTranslator
     implements FlinkPortablePipelineTranslator<
     FlinkBatchPortablePipelineTranslator.BatchTranslationContext> {
 
+  public static BatchTranslationContext createBatchContext(FlinkPipelineOptions options) {
+    return new BatchTranslationContextImpl(
+        options,
+        FlinkPipelineExecutionEnvironment.createBatchExecutionEnvironment(options));
+  }
+
   // Shared between batch and streaming
   interface TranslationContext {
     PipelineOptions getPipelineOptions();
@@ -92,7 +98,7 @@ public class FlinkBatchPortablePipelineTranslator
     ExecutionEnvironment getExecutionEnvironment();
   }
 
-  private abstract class TranslationContextImpl
+  private abstract static class TranslationContextImpl
       implements TranslationContext {
     private final Map<String, DataSet<?>> dataSets;
     private final PipelineOptions pipelineOptions;
@@ -120,7 +126,7 @@ public class FlinkBatchPortablePipelineTranslator
     }
   }
 
-  private class BatchTranslationContextImpl
+  private static class BatchTranslationContextImpl
       extends TranslationContextImpl
       implements BatchTranslationContext {
     private final ExecutionEnvironment executionEnvironment;

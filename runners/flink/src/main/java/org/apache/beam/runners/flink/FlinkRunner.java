@@ -26,8 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import javax.annotation.Nullable;
-import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineRunner;
@@ -55,9 +53,6 @@ public class FlinkRunner extends PipelineRunner<PipelineResult> {
    * Provided options.
    */
   private final FlinkPipelineOptions options;
-
-  @Nullable
-  private ArtifactSource artifactSource;
 
   /**
    * Construct a runner from the provided options.
@@ -99,7 +94,6 @@ public class FlinkRunner extends PipelineRunner<PipelineResult> {
   private FlinkRunner(FlinkPipelineOptions options) {
     this.options = options;
     this.ptransformViewsWithNonDeterministicKeyCoders = new HashSet<>();
-    this.artifactSource = null;
   }
 
   @Override
@@ -115,16 +109,6 @@ public class FlinkRunner extends PipelineRunner<PipelineResult> {
     LOG.info("Translating pipeline to Flink program.");
     env.translate(this, pipeline);
 
-    if (artifactSource != null) {
-      LOG.info("Registering pipeline artifacts in Flink program.");
-      try {
-        env.loadStagedArtifacts(artifactSource);
-      } catch (Exception e) {
-        LOG.error("Artifact registration failed", e);
-        throw new RuntimeException("Artifact registration failed", e);
-      }
-    }
-
     JobExecutionResult result;
     try {
       LOG.info("Starting execution of Flink program.");
@@ -134,6 +118,10 @@ public class FlinkRunner extends PipelineRunner<PipelineResult> {
       throw new RuntimeException("Pipeline execution failed", e);
     }
 
+    return createPipelineResult(result);
+  }
+
+  static PipelineResult createPipelineResult(JobExecutionResult result) {
     if (result instanceof DetachedEnvironment.DetachedJobExecutionResult) {
       LOG.info("Pipeline submitted in Detached mode");
       return new FlinkDetachedRunnerResult();
@@ -149,11 +137,6 @@ public class FlinkRunner extends PipelineRunner<PipelineResult> {
 
       return new FlinkRunnerResult(accumulators, result.getNetRuntime());
     }
-  }
-
-  /** Optionally set a source for portability artifacts. */
-  public void setArtifactSource(ArtifactSource artifactSource) {
-    this.artifactSource = artifactSource;
   }
 
   /**
