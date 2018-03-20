@@ -22,9 +22,9 @@ import static org.apache.flink.util.Preconditions.checkState;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.protobuf.Struct;
-import io.netty.util.internal.ThreadLocalRandom;
 import java.math.BigInteger;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
@@ -124,35 +124,36 @@ public class FlinkExecutableStageFunction<InputT> extends
     for (Map.Entry<BeamFnApi.Target, Coder<WindowedValue<?>>> entry : outputCoders.entrySet()) {
       BeamFnApi.Target target = entry.getKey();
       Coder<WindowedValue<?>> coder = entry.getValue();
-      SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>> receiver = new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>>() {
-        @Override
-        public Coder<WindowedValue<?>> getCoder() {
-          return coder;
-        }
-
-        @Override
-        public FnDataReceiver<WindowedValue<?>> getReceiver() {
-          return new FnDataReceiver<WindowedValue<?>>() {
+      SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>> receiver =
+          new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>>() {
             @Override
-            public void accept(WindowedValue<?> input) throws Exception {
-              logger.finer(String.format("Receiving value: %s", input));
-              // TODO: Can this be called by multiple threads? Are calls guaranteed to at least be
-              // serial? If not, these calls may need to be synchronized.
-              // TODO: If this needs to be synchronized, consider requiring immutable maps.
-              synchronized (collectorLock) {
-                // TODO: Get the correct output union tag from the corresponding output tag.
-                // Plumb through output tags from process bundle descriptor.
-                // NOTE: The output map is guaranteed to be non-empty at this point, so we can
-                // always grab index 0.
-                // TODO: Plumb through TupleTag <-> Target mappings to get correct union tag here.
-                // For now, assume only one union tag.
-                int unionTag = Iterables.getOnlyElement(outputMap.values());
-                collector.collect(new RawUnionValue(unionTag, input));
-              }
+            public Coder<WindowedValue<?>> getCoder() {
+              return coder;
+            }
+
+            @Override
+            public FnDataReceiver<WindowedValue<?>> getReceiver() {
+              return new FnDataReceiver<WindowedValue<?>>() {
+                @Override
+                public void accept(WindowedValue<?> input) throws Exception {
+                  logger.finer(String.format("Receiving value: %s", input));
+                  // TODO: Can this be called by multiple threads? Are calls guaranteed to at least
+                  // be serial? If not, these calls may need to be synchronized.
+                  // TODO: If this needs to be synchronized, consider requiring immutable maps.
+                  synchronized (collectorLock) {
+                    // TODO: Get the correct output union tag from the corresponding output tag.
+                    // Plumb through output tags from process bundle descriptor.
+                    // NOTE: The output map is guaranteed to be non-empty at this point, so we can
+                    // always grab index 0.
+                    // TODO: Plumb through TupleTag <-> Target mappings to get correct union tag
+                    // here. For now, assume only one union tag.
+                    int unionTag = Iterables.getOnlyElement(outputMap.values());
+                    collector.collect(new RawUnionValue(unionTag, input));
+                  }
+                }
+              };
             }
           };
-        }
-      };
       receiverBuilder.put(target, receiver);
     }
     Map<BeamFnApi.Target,

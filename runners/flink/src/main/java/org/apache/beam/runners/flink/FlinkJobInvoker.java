@@ -37,13 +37,13 @@ public class FlinkJobInvoker implements JobInvoker {
     LOG.debug("Invoking job preparation {}", preparation.id());
     String invocationId =
         String.format("%s_%d", preparation.id(), ThreadLocalRandom.current().nextInt());
-    // TODO(axelmagn): How to make Java/Python agree on names of keys and their values?
+    // TODO: How to make Java/Python agree on names of keys and their values?
     LOG.trace("Parsing pipeline options");
     FlinkPipelineOptions options = PipelineOptionsTranslation.fromProto(preparation.options())
             .as(FlinkPipelineOptions.class);
 
     LOG.trace("Translating pipeline from proto");
-    // TODO(axelmagn): remove this hack once python pipeline is working
+    // TODO: remove this hack once python pipeline is working
     RunnerApi.Pipeline origPipeline = preparation.pipeline();
     RunnerApi.Environment hackEnv =
         RunnerApi.Environment

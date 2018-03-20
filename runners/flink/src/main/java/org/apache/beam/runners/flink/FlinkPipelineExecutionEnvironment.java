@@ -19,7 +19,6 @@ package org.apache.beam.runners.flink;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
 import com.google.common.util.concurrent.SettableFuture;
 import io.grpc.stub.StreamObserver;
@@ -32,7 +31,6 @@ import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactMetadata;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
-import org.apache.beam.runners.core.construction.JavaReadViaImpulse;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
