@@ -33,11 +33,14 @@ import org.slf4j.LoggerFactory;
 /** An implementation of the Beam Fn State service. */
 public class GrpcStateService extends BeamFnStateGrpc.BeamFnStateImplBase
     implements StateDelegator, FnService {
-  private static final Logger LOG = LoggerFactory.getLogger(GrpcStateService.class);
+
+  public static final GrpcStateService create() {
+    return new GrpcStateService();
+  }
+
   private final ConcurrentHashMap<String, StateRequestHandler> requestHandlers;
 
-  public GrpcStateService()
-      throws Exception {
+  private GrpcStateService() {
     this.requestHandlers = new ConcurrentHashMap<>();
   }
 
