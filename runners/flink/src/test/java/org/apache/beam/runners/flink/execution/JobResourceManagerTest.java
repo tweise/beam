@@ -13,6 +13,7 @@ import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentManager;
 import org.apache.beam.runners.fnexecution.environment.RemoteEnvironment;
+import org.apache.beam.runners.fnexecution.state.GrpcStateService;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -30,6 +31,7 @@ public class JobResourceManagerTest {
   @Mock EnvironmentManager containerManager;
   @Mock RemoteEnvironment remoteEnvironment;
   @Mock GrpcFnServer<GrpcDataService> dataServer;
+  @Mock GrpcFnServer<GrpcStateService> stateServer;
   @Mock GrpcDataService dataService;
 
   JobResourceManager manager;
@@ -39,6 +41,7 @@ public class JobResourceManagerTest {
     MockitoAnnotations.initMocks(this);
     manager = JobResourceManager.create(jobInfo, environment, artifactSource, jobResourceFactory);
     when(jobResourceFactory.dataService()).thenReturn(dataServer);
+    when(jobResourceFactory.stateService()).thenReturn(stateServer);
     when(dataServer.getService()).thenReturn(dataService);
     when(jobResourceFactory.containerManager(artifactSource, jobInfo, dataService))
         .thenReturn(containerManager);
