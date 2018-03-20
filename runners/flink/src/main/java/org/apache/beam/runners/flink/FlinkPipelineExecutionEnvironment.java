@@ -27,6 +27,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactMetadata;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
@@ -347,10 +348,14 @@ class FlinkPipelineExecutionEnvironment {
       try (FileOutputStream fileOutputStream = new FileOutputStream(artifactPath.toFile())) {
         ArtifactWriter writer = new ArtifactWriter(fileOutputStream);
         artifactSource.getArtifact(artifactHandle, writer);
-        writer.result.wait();
+        // TODO: use sane timeout
+        writer.result.get();
         registerCachedFile(artifactPath.toUri().toString(), artifactHandle);
       } catch (InterruptedException e) {
         LOG.warn("Interrupted while writing artifact with name %s", artifactName);
+      } catch (ExecutionException e) {
+        // TODO: replace with more specific exception
+        throw new RuntimeException("Unexpected exception while writing artifact", e);
       }
     }
 
