@@ -40,7 +40,6 @@ import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.coders.LengthPrefixCoder;
-import org.apache.beam.sdk.testing.FlattenWithHeterogeneousCoders;
 import org.apache.beam.sdk.util.SerializableUtils;
 
 /** Converts to and from Beam Runner API representations of {@link Coder Coders}. */

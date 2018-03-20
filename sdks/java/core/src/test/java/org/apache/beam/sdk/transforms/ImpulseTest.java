@@ -5,27 +5,23 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import org.apache.beam.runners.core.construction.JavaReadViaImpulse;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.VarIntCoder;
 import org.apache.beam.sdk.io.BoundedSource;
 import org.apache.beam.sdk.options.PipelineOptions;
-import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
-import org.apache.beam.sdk.testing.UsesImpulse;
-import org.apache.beam.sdk.testing.ValidatesRunner;
-import org.apache.beam.sdk.values.PCollection;
 import org.junit.Rule;
-import org.junit.Test;
-import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
+/**
+ * Test.
+ */
 @RunWith(JUnit4.class)
 public class ImpulseTest {
   @Rule
   public transient TestPipeline p = TestPipeline.create();
-
+/*
   @Test
   @Category({ValidatesRunner.class, UsesImpulse.class})
   public void testImpulseRead() {
@@ -33,7 +29,7 @@ public class ImpulseTest {
     PAssert.that(result).containsInAnyOrder(1, 2, 3);
     p.run().waitUntilFinish();
   }
-
+*/
   private static class Source extends BoundedSource<Integer> {
 
     private final List<Integer> elems;

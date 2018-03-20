@@ -20,7 +20,6 @@ package org.apache.beam.runners.core.construction.graph;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import com.google.common.base.Preconditions;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;

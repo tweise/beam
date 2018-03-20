@@ -18,6 +18,8 @@
 
 package org.apache.beam.runners.core.construction.graph;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.Sets;
 import java.util.HashMap;
@@ -31,8 +33,6 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
-
-import static com.google.common.base.Preconditions.checkState;
 
 /** A {@link Pipeline} which has been separated into collections of executable components. */
 @AutoValue

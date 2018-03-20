@@ -18,13 +18,10 @@
 
 package org.apache.beam.runners.core.construction;
 
-import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.TreeNode;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableMap;
-import com.google.gson.JsonObject;
 import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
 import java.io.IOException;
@@ -58,7 +55,8 @@ public class PipelineOptionsTranslation {
         String optionKey = optionsKeys.next();
         TreeNode optionValue = rootOptions.get(optionKey);
         optionsUsingUrns.put(
-            "beam:option:" + CaseFormat.LOWER_CAMEL.to(CaseFormat.LOWER_UNDERSCORE, optionKey) + ":v1",
+            "beam:option:" + CaseFormat.LOWER_CAMEL.to(CaseFormat.LOWER_UNDERSCORE, optionKey)
+                    + ":v1",
             optionValue);
       }
 

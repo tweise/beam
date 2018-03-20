@@ -18,10 +18,12 @@
 
 package org.apache.beam.runners.core.construction.graph;
 
+import java.util.Map;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 
-import java.util.Map;
-
+/**
+ * PipelineReplacement.
+ */
 public class PipelineReplacement {
   public static RunnerApi.Pipeline replaceInPreorderTopologicalTraversal(
       RunnerApi.Pipeline pipeline,
@@ -29,6 +31,9 @@ public class PipelineReplacement {
     return null;
   }
 
+  /**
+   * TransformReplacer.
+   */
   public interface TransformReplacer {
     RunnerApi.Pipeline replace(String ptransformId, RunnerApi.Pipeline pipeline);
   }

@@ -49,8 +49,7 @@ class GreedyPCollectionFusers {
               // GroupByKeys are runner-implemented only. PCollections consumed by a GroupByKey must
               // be materialized
               PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN, GreedyPCollectionFusers::cannotFuse)
-	      .put(
-		      PTransformTranslation.RESHUFFLE_URN, GreedyPCollectionFusers::cannotFuse)
+              .put(PTransformTranslation.RESHUFFLE_URN, GreedyPCollectionFusers::cannotFuse)
           .put(PTransformTranslation.CREATE_VIEW_TRANSFORM_URN, GreedyPCollectionFusers::cannotFuse)
           .build();
   private static final FusibilityChecker DEFAULT_FUSIBILITY_CHECKER =

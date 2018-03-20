@@ -86,61 +86,46 @@ public class FlinkBatchPortablePipelineTranslator
         FlinkPipelineExecutionEnvironment.createBatchExecutionEnvironment(options));
   }
 
-  // Shared between batch and streaming
-  interface TranslationContext {
-    PipelineOptions getPipelineOptions();
+  // For batch only
+  interface BatchTranslationContext extends FlinkPortablePipelineTranslator.TranslationContext {
+    ExecutionEnvironment getExecutionEnvironment();
     <T> void addDataSet(String pCollectionId, DataSet<T> dataSet);
     <T> DataSet<T> getDataSetOrThrow(String pCollectionId);
-  }
-
-  // For batch only
-  interface BatchTranslationContext extends TranslationContext {
-    ExecutionEnvironment getExecutionEnvironment();
-  }
-
-  private abstract static class TranslationContextImpl
-      implements TranslationContext {
-    private final Map<String, DataSet<?>> dataSets;
-    private final PipelineOptions pipelineOptions;
-
-    protected TranslationContextImpl(PipelineOptions pipelineOptions) {
-      this.pipelineOptions = pipelineOptions;
-      dataSets = new HashMap<>();
-    }
-
-    public <T> void addDataSet(String pCollectionId, DataSet<T> dataSet) {
-      dataSets.put(pCollectionId, dataSet);
-    }
-
-    public <T> DataSet<T> getDataSetOrThrow(String pCollectionId) {
-      DataSet<T> dataSet = (DataSet<T>) dataSets.get(pCollectionId);
-      if (dataSet == null) {
-        throw new IllegalArgumentException(
-            String.format("Unknown dataset for id %s.", pCollectionId));
-      }
-      return dataSet;
-    }
-
-    public PipelineOptions getPipelineOptions() {
-      return pipelineOptions;
-    }
   }
 
   private static class BatchTranslationContextImpl
       extends TranslationContextImpl
       implements BatchTranslationContext {
     private final ExecutionEnvironment executionEnvironment;
+    private final Map<String, DataSet<?>> dataSets;
     private BatchTranslationContextImpl(
         PipelineOptions pipelineOptions,
         ExecutionEnvironment executionEnvironment) {
       super(pipelineOptions);
       this.executionEnvironment = executionEnvironment;
+      dataSets = new HashMap<>();
     }
 
     @Override
     public ExecutionEnvironment getExecutionEnvironment() {
       return executionEnvironment;
     }
+
+    @Override
+    public <T> void addDataSet(String pCollectionId, DataSet<T> dataSet) {
+      dataSets.put(pCollectionId, dataSet);
+    }
+
+    @Override
+    public <T> DataSet<T> getDataSetOrThrow(String pCollectionId) {
+      DataSet<T> dataSet = (DataSet<T>) dataSets.get(pCollectionId);
+      if (dataSet == null) {
+        throw new IllegalArgumentException(
+                String.format("Unknown dataset for id %s.", pCollectionId));
+      }
+      return dataSet;
+    }
+
   }
 
   interface PTransformTranslator<T> {
