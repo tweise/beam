@@ -1,6 +1,10 @@
 package org.apache.beam.runners.flink;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -8,30 +12,19 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.beam.model.pipeline.v1.RunnerApi;
-import org.apache.beam.runners.core.construction.CoderTranslation;
-import akka.dispatch.BatchingExecutor;
-import com.google.common.collect.BiMap;
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import java.io.IOException;
-import java.util.List;
 import java.util.TreeMap;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.CoderTranslation;
-import org.apache.beam.runners.core.construction.ExecutableStageTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.RehydratedComponents;
 import org.apache.beam.runners.core.construction.WindowingStrategyTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.core.construction.graph.PipelineNode;
 import org.apache.beam.runners.core.construction.graph.QueryablePipeline;
-import org.apache.beam.runners.flink.translation.functions.FlinkPartialReduceFunction;
-import org.apache.beam.runners.flink.translation.functions.FlinkReduceFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkExecutableStageFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkExecutableStagePruningFunction;
+import org.apache.beam.runners.flink.translation.functions.FlinkPartialReduceFunction;
+import org.apache.beam.runners.flink.translation.functions.FlinkReduceFunction;
 import org.apache.beam.runners.flink.translation.types.CoderTypeInformation;
 import org.apache.beam.runners.flink.translation.types.KvKeySelector;
 import org.apache.beam.runners.flink.translation.wrappers.ImpulseInputFormat;
@@ -51,33 +44,24 @@ import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.PValue;
-import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.io.DiscardingOutputFormat;
 import org.apache.flink.api.java.operators.DataSource;
+import org.apache.flink.api.java.operators.FlatMapOperator;
 import org.apache.flink.api.java.operators.GroupCombineOperator;
 import org.apache.flink.api.java.operators.GroupReduceOperator;
 import org.apache.flink.api.java.operators.Grouping;
-
-import java.util.HashMap;
-import java.util.Map;
-import org.apache.flink.api.java.operators.FlatMapOperator;
 import org.apache.flink.api.java.operators.MapPartitionOperator;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
 /**
  * Translate a bounded portable pipeline representation into a Flink pipeline representation.
  */
 public class FlinkBatchPortablePipelineTranslator
     implements FlinkPortablePipelineTranslator<
     FlinkBatchPortablePipelineTranslator.BatchTranslationContext> {
-
-public class FlinkBatchPortablePipelineTranslator implements FlinkPortablePipelineTranslator<FlinkBatchPortablePipelineTranslator.BatchTranslationContext> {
 
   // Shared between batch and streaming
   interface TranslationContext {
@@ -196,10 +180,12 @@ public class FlinkBatchPortablePipelineTranslator implements FlinkPortablePipeli
         WindowingStrategy<Object, BoundedWindow> windowingStrategy =
             (WindowingStrategy<Object, BoundedWindow>)
             WindowingStrategyTranslation.fromProto(windowProto, rehydratedComponents);
-        windowCoder = WindowedValue.getFullCoder(elementCoder, windowingStrategy.getWindowFn().windowCoder());
+        windowCoder = WindowedValue.getFullCoder(elementCoder,
+            windowingStrategy.getWindowFn().windowCoder());
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
+      outputCoders.put(localOutputName, windowCoder);
       unionCoders.add(windowCoder);
     }
     UnionCoder unionCoder = UnionCoder.of(unionCoders);
@@ -214,6 +200,7 @@ public class FlinkBatchPortablePipelineTranslator implements FlinkPortablePipeli
     }
     FlinkExecutableStageFunction<InputT> function =
         new FlinkExecutableStageFunction<>(stagePayload, components,
+            stagePayload.getEnvironment(),
             outputMap);
     Map<String, String> inputs = transform.getInputsMap();
     DataSet<WindowedValue<InputT>> inputDataSet =
@@ -227,7 +214,7 @@ public class FlinkBatchPortablePipelineTranslator implements FlinkPortablePipeli
       pruneOutput(taggedDataset,
           context,
           outputMap.get(output.getKey()),
-          null,
+          (Coder) outputCoders.get(output.getKey()),
           transform.getUniqueName(),
           output.getValue());
     }
@@ -449,17 +436,17 @@ public class FlinkBatchPortablePipelineTranslator implements FlinkPortablePipeli
             id));
   }
 
-  private static <T> void pruneOutput(
+  private static void pruneOutput(
       DataSet<RawUnionValue> taggedDataset,
       BatchTranslationContext context,
       int unionTag,
-      Coder<WindowedValue<T>> outputCoder,
+      Coder<WindowedValue<Object>> outputCoder,
       String transformName,
       String collectionId) {
-    TypeInformation<WindowedValue<T>> outputType = new CoderTypeInformation<>(outputCoder);
-    FlinkExecutableStagePruningFunction<T> pruningFunction =
+    TypeInformation<WindowedValue<Object>> outputType = new CoderTypeInformation<>(outputCoder);
+    FlinkExecutableStagePruningFunction<Object> pruningFunction =
         new FlinkExecutableStagePruningFunction<>(unionTag);
-    FlatMapOperator<RawUnionValue, WindowedValue<T>> pruningOperator =
+    FlatMapOperator<RawUnionValue, WindowedValue<Object>> pruningOperator =
         new FlatMapOperator<>(taggedDataset, outputType, pruningFunction,
             String.format("%s/out.%d", transformName, unionTag));
     context.addDataSet(collectionId, pruningOperator);

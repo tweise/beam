@@ -725,7 +725,7 @@ class FlinkBatchTransformTranslators {
       FlinkExecutableStageFunction<InputT> function =
           new FlinkExecutableStageFunction<>(stagePayload, context.getComponents(),
               stagePayload.getEnvironment(),
-              outputMap);
+              null);
       DataSet<WindowedValue<InputT>> inputDataSet =
           context.getInputDataSet(context.getInput(transform));
       DataSet<RawUnionValue> taggedDataset =

@@ -5,7 +5,7 @@ import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.util.Collector;
 
-/** TODO: docstring. */
+/** Flink function that demultiplexes output from a multi-output executable stage. */
 public class FlinkExecutableStagePruningFunction<T>
     implements FlatMapFunction<RawUnionValue, WindowedValue<T>> {
 
@@ -16,8 +16,7 @@ public class FlinkExecutableStagePruningFunction<T>
   }
 
   @Override
-  public void flatMap(RawUnionValue rawUnionValue, Collector<WindowedValue<T>> collector)
-      throws Exception {
+  public void flatMap(RawUnionValue rawUnionValue, Collector<WindowedValue<T>> collector) {
     if (rawUnionValue.getUnionTag() == unionTag) {
       collector.collect((WindowedValue<T>) rawUnionValue.getValue());
     }
