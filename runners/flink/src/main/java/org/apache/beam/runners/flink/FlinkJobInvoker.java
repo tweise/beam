@@ -43,24 +43,7 @@ public class FlinkJobInvoker implements JobInvoker {
             .as(FlinkPipelineOptions.class);
 
     LOG.trace("Translating pipeline from proto");
-    // TODO: remove this hack once python pipeline is working
-    RunnerApi.Pipeline origPipeline = preparation.pipeline();
-    RunnerApi.Environment hackEnv =
-        RunnerApi.Environment
-            .newBuilder()
-            .setUrl("gcr.io/google.com/hadoop-cloud-dev/beam/python")
-            .build();
-    RunnerApi.Components hackComponents =
-        RunnerApi.Components
-            .newBuilder(origPipeline.getComponents())
-            .putEnvironments("", hackEnv)
-            .build();
-    RunnerApi.Pipeline hackPipeline =
-        RunnerApi.Pipeline
-            .newBuilder(origPipeline)
-            .setComponents(hackComponents)
-            .build();
-    Pipeline pipeline = PipelineTranslation.fromProto(hackPipeline);
+    Pipeline pipeline = PipelineTranslation.fromProto(preparation.pipeline());
 
     LOG.trace("Creating flink runner");
     FlinkRunner runner = FlinkRunner.fromOptions(options);
