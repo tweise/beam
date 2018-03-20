@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javassist.bytecode.ByteArray;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
@@ -19,6 +20,8 @@ import org.apache.beam.runners.flink.translation.functions.FlinkPartialReduceFun
 import org.apache.beam.runners.flink.translation.functions.FlinkReduceFunction;
 import org.apache.beam.runners.flink.translation.types.CoderTypeInformation;
 import org.apache.beam.runners.flink.translation.types.KvKeySelector;
+import org.apache.beam.runners.flink.translation.wrappers.ImpulseInputFormat;
+import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderRegistry;
 import org.apache.beam.sdk.coders.KvCoder;
@@ -52,8 +55,8 @@ public class FlinkBatchPortablePipelineTranslator
   interface TranslationContext {
     FlinkPipelineExecutionEnvironment getFlinkPipelineExecutionEnvironment();
     PipelineOptions getPipelineOptions();
-    <T> void addDataSet(String id, DataSet<T> dataSet);
-    <T> DataSet<T> getDataSetOrThrow(String id);
+    <T> void addDataSet(String pCollectionId, DataSet<T> dataSet);
+    <T> DataSet<T> getDataSetOrThrow(String pCollectionId);
   }
 
   // For batch only
@@ -115,6 +118,8 @@ public class FlinkBatchPortablePipelineTranslator
         this::translateFlatten);
     urnToTransformTranslator.put(PTransformTranslation.GROUP_BY_KEY_TRANSFORM_URN,
         this::translateGroupByKey);
+    urnToTransformTranslator.put(PTransformTranslation.IMPULSE_TRANSFORM_URN,
+        this::translateImpulse);
   }
 
   @Override
@@ -264,6 +269,25 @@ public class FlinkBatchPortablePipelineTranslator
     context.addDataSet(
         Iterables.getOnlyElement(pTransform.getOutputsMap().values()),
         outputDataSet);
+  }
+
+  public void translateImpulse(
+      String id, RunnerApi.Pipeline pipeline, BatchTranslationContext context) {
+    RunnerApi.PTransform pTransform =
+        pipeline.getComponents().getTransformsOrThrow(id);
+
+    TypeInformation<WindowedValue<byte[]>> typeInformation =
+        new CoderTypeInformation<>(
+            WindowedValue.getFullCoder(ByteArrayCoder.of(), GlobalWindow.Coder.INSTANCE));
+    DataSource<WindowedValue<byte[]>> dataSource = new DataSource<>(
+        context.getExecutionEnvironment(),
+        new ImpulseInputFormat(),
+        typeInformation,
+        pTransform.getUniqueName());
+
+    context.addDataSet(
+        Iterables.getOnlyElement(pTransform.getOutputsMap().values()),
+        dataSource);
   }
 
   /**
