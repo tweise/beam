@@ -347,7 +347,7 @@ class FlinkPipelineExecutionEnvironment {
       Path artifactPath = tempDirPath.resolve(artifactHandle);
       try (FileOutputStream fileOutputStream = new FileOutputStream(artifactPath.toFile())) {
         ArtifactWriter writer = new ArtifactWriter(fileOutputStream);
-        artifactSource.getArtifact(artifactHandle, writer);
+        artifactSource.getArtifact(artifactName, writer);
         // TODO: use sane timeout
         writer.result.get();
         registerCachedFile(artifactPath.toUri().toString(), artifactHandle);
