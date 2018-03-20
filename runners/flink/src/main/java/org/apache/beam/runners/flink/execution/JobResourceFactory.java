@@ -73,7 +73,7 @@ public class JobResourceFactory {
   }
 
   public GrpcFnServer<GrpcStateService> stateService() throws IOException {
-    GrpcStateService stateService  = new GrpcStateService();
+    GrpcStateService stateService  = GrpcStateService.create();
     return GrpcFnServer.allocatePortAndCreateFor(stateService, serverFactory);
   }
 
