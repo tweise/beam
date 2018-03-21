@@ -18,8 +18,6 @@
 
 package org.apache.beam.runners.core.construction.graph;
 
-import static com.google.common.base.Preconditions.checkState;
-
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.Sets;
 import java.util.HashMap;
@@ -38,9 +36,13 @@ import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNo
 @AutoValue
 public abstract class FusedPipeline {
   static FusedPipeline of(
-      Set<ExecutableStage> environmentalStages, Set<PTransformNode> runnerStages) {
-    return new AutoValue_FusedPipeline(environmentalStages, runnerStages);
+      Components components,
+      Set<ExecutableStage> environmentalStages,
+      Set<PTransformNode> runnerStages) {
+    return new AutoValue_FusedPipeline(components, environmentalStages, runnerStages);
   }
+
+  abstract Components getComponents();
 
   /** The {@link ExecutableStage executable stages} that are executed by SDK harnesses. */
   public abstract Set<ExecutableStage> getFusedStages();
@@ -48,62 +50,61 @@ public abstract class FusedPipeline {
   /** The {@link PTransform PTransforms} that a runner is responsible for executing. */
   public abstract Set<PTransformNode> getRunnerExecutedTransforms();
 
-  public RunnerApi.Pipeline toPipeline(Components initialComponents) {
-    Components executableComponents =
-        initialComponents
-            .toBuilder()
-            .clearTransforms()
-            .putAllTransforms(getTopLevelTransforms(initialComponents))
-            .build();
+  /**
+   * Returns the {@link RunnerApi.Pipeline} representation of this {@link FusedPipeline}.
+   *
+   * <p>The {@link Components} of the returned pipeline will contain all of the {@link PTransform
+   * PTransforms} present in the original Pipeline that this {@link FusedPipeline} was created from,
+   * plus all of the {@link ExecutableStage ExecutableStages} contained within this {@link
+   * FusedPipeline}. The Root Transform IDs will contain all of the runner executed transforms and
+   * all of the ExecutableStages contained within the Pipeline.
+   */
+  public RunnerApi.Pipeline toPipeline() {
+    Map<String, PTransform> executableStageTransforms = getEnvironmentExecutedTransforms();
+    Set<String> executableTransformIds =
+        Sets.union(
+            executableStageTransforms.keySet(),
+            getRunnerExecutedTransforms()
+                .stream()
+                .map(PTransformNode::getId)
+                .collect(Collectors.toSet()));
+
+    // Augment the initial transforms with all of the executable transforms.
+    Components fusedComponents =
+        getComponents().toBuilder().putAllTransforms(executableStageTransforms).build();
     List<String> rootTransformIds =
         StreamSupport.stream(
-                QueryablePipeline.forComponents(executableComponents)
+                QueryablePipeline.forTransforms(executableTransformIds, fusedComponents)
                     .getTopologicallyOrderedTransforms()
                     .spliterator(),
                 false)
             .map(PTransformNode::getId)
             .collect(Collectors.toList());
     return Pipeline.newBuilder()
-        .setComponents(executableComponents.toBuilder().putAllTransforms(getFusedTransforms()))
+        .setComponents(fusedComponents)
         .addAllRootTransformIds(rootTransformIds)
         .build();
   }
 
   /**
-   * Return a {@link Components} like the {@code base} components, but with the only transforms
-   * equal to this fused pipeline.
+   * Return a {@link Components} like the {@code base} components, but with the set of transforms to
+   * be executed by an SDK harness.
    *
-   * <p>The only composites will be the stages returned by {@link #getFusedStages()}, and the only
-   * primitives will be the {@link PTransformNode transforms} returned by {@link
-   * #getRunnerExecutedTransforms()}.
+   * <p>The transforms that are present in the returned map are the {@link RunnerApi.PTransform}
+   * versions of the {@link ExecutableStage ExecutableStages} returned in {@link #getFusedStages()}.
+   * The IDs of the returned transforms will not collide with any transform ID present in {@link
+   * #getComponents()}.
    */
-  private Map<String, PTransform> getTopLevelTransforms(Components base) {
+  private Map<String, PTransform> getEnvironmentExecutedTransforms() {
     Map<String, PTransform> topLevelTransforms = new HashMap<>();
-    for (PTransformNode runnerExecuted : getRunnerExecutedTransforms()) {
-      PTransform extant = topLevelTransforms.put(
-          runnerExecuted.getId(),
-          runnerExecuted.getTransform());
-      checkState(
-          extant == null,
-          "Transforms with ID %s collided: %s and %s",
-          runnerExecuted.getId(),
-          extant,
-          runnerExecuted.getTransform());
-    }
     for (ExecutableStage stage : getFusedStages()) {
       topLevelTransforms.put(
           generateStageId(
-              stage, Sets.union(base.getTransformsMap().keySet(), topLevelTransforms.keySet())),
+              stage,
+              Sets.union(getComponents().getTransformsMap().keySet(), topLevelTransforms.keySet())),
           stage.toPTransform());
     }
     return topLevelTransforms;
-  }
-
-  private Map<String, PTransform> getFusedTransforms() {
-    return getFusedStages()
-        .stream()
-        .flatMap(stage -> stage.getTransforms().stream())
-        .collect(Collectors.toMap(PTransformNode::getId, PTransformNode::getTransform));
   }
 
   private String generateStageId(ExecutableStage stage, Set<String> existingIds) {
