@@ -76,41 +76,41 @@ public class FusedPipelineTest implements Serializable {
         fused.getFusedStages().size() == 2,
         "Unexpected number of fused stages %s",
         fused.getFusedStages());
-    RunnerApi.Pipeline fusedProto = fused.toPipeline(protoPipeline.getComponents());
+    RunnerApi.Pipeline fusedPipelineProto = fused.toPipeline();
 
     assertThat(
         "Root Transforms should all be present in the Pipeline Components",
-        fusedProto.getComponents().getTransformsMap().keySet(),
-        hasItems(fusedProto.getRootTransformIdsList().toArray(new String[0])));
+        fusedPipelineProto.getComponents().getTransformsMap().keySet(),
+        hasItems(fusedPipelineProto.getRootTransformIdsList().toArray(new String[0])));
     assertThat(
         "Should contain Impulse, GroupByKey, and two Environment Stages",
-        fusedProto.getRootTransformIdsCount(),
+        fusedPipelineProto.getRootTransformIdsCount(),
         equalTo(4));
-    assertThat(fusedProto.getRootTransformIdsList(), hasItems("impulse", "gbk"));
-    assertRootsInTopologicalOrder(fusedProto);
+    assertThat(fusedPipelineProto.getRootTransformIdsList(), hasItems("impulse", "gbk"));
+    assertRootsInTopologicalOrder(fusedPipelineProto);
     // Since MapElements, WithKeys, and Values are all composites of a ParDo, we do prefix matching
     // instead of looking at the inside of their expansions
     assertThat(
         "Fused transforms should be present in the components",
-        fusedProto.getComponents().getTransformsMap(),
+        fusedPipelineProto.getComponents().getTransformsMap(),
         allOf(hasKey(startsWith("map")), hasKey(startsWith("key")), hasKey(startsWith("values"))));
     assertThat(
         "Fused transforms shouldn't be present in the root IDs",
-        fusedProto.getRootTransformIdsList(),
+        fusedPipelineProto.getRootTransformIdsList(),
         not(hasItems(startsWith("map"), startsWith("key"), startsWith("values"))));
 
     // The other components should be those of the original pipeline.
     assertThat(
-        fusedProto.getComponents().getCodersMap(),
+        fusedPipelineProto.getComponents().getCodersMap(),
         equalTo(protoPipeline.getComponents().getCodersMap()));
     assertThat(
-        fusedProto.getComponents().getWindowingStrategiesMap(),
+        fusedPipelineProto.getComponents().getWindowingStrategiesMap(),
         equalTo(protoPipeline.getComponents().getWindowingStrategiesMap()));
     assertThat(
-        fusedProto.getComponents().getEnvironmentsMap(),
+        fusedPipelineProto.getComponents().getEnvironmentsMap(),
         equalTo(protoPipeline.getComponents().getEnvironmentsMap()));
     assertThat(
-        fusedProto.getComponents().getPcollectionsMap(),
+        fusedPipelineProto.getComponents().getPcollectionsMap(),
         equalTo(protoPipeline.getComponents().getPcollectionsMap()));
   }
 

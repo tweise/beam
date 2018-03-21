@@ -195,19 +195,6 @@ public class QueryablePipeline {
         .collect(Collectors.toSet());
   }
 
-  /**
-   * Get the PCollections which are not consumed by any {@link PTransformNode} in this {@link
-   * QueryablePipeline}.
-   */
-  private Set<PCollectionNode> getLeafPCollections() {
-    return pipelineNetwork
-        .nodes()
-        .stream()
-        .filter(pipelineNode -> pipelineNetwork.outEdges(pipelineNode).isEmpty())
-        .map(pipelineNode -> (PCollectionNode) pipelineNode)
-        .collect(Collectors.toSet());
-  }
-
   public PTransformNode getProducer(PCollectionNode pcollection) {
     return (PTransformNode) Iterables.getOnlyElement(pipelineNetwork.predecessors(pcollection));
   }
