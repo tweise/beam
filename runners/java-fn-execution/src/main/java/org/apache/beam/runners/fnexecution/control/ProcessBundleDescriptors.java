@@ -23,10 +23,11 @@ import static org.apache.beam.runners.core.construction.UrnUtils.validateCommonU
 
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.Iterables;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.ProcessBundleDescriptor;
@@ -41,10 +42,11 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.MessageWithComponents;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.runners.core.construction.CoderTranslation;
+import org.apache.beam.runners.core.construction.RehydratedComponents;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
-import org.apache.beam.runners.fnexecution.control.SdkHarnessClient.RemoteInputDestination;
+import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
 import org.apache.beam.runners.fnexecution.graph.LengthPrefixUnknownCoders;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.fn.data.RemoteGrpcPortRead;
@@ -55,8 +57,9 @@ import org.apache.beam.sdk.util.WindowedValue.FullWindowedValueCoder;
 /** Utility methods for creating {@link ProcessBundleDescriptor} instances. */
 // TODO: Rename to ExecutableStages?
 public class ProcessBundleDescriptors {
-  public static SimpleProcessBundleDescriptor fromExecutableStage(
-      String id, ExecutableStage stage, Components components, ApiServiceDescriptor dataEndpoint) {
+  public static ExecutableProcessBundleDescriptor fromExecutableStage(
+      String id, ExecutableStage stage, Components components, ApiServiceDescriptor dataEndpoint)
+      throws IOException {
     // Create with all of the processing transforms, and all of the components.
     // TODO: Remove the unreachable subcomponents if the size of the descriptor matters.
     ProcessBundleDescriptor.Builder bundleDescriptorBuilder =
@@ -84,7 +87,7 @@ public class ProcessBundleDescriptors {
       outputTargetCoders.put(targetEncoding.getTarget(), targetEncoding.getCoder());
     }
 
-    return SimpleProcessBundleDescriptor.of(
+    return ExecutableProcessBundleDescriptor.of(
         bundleDescriptorBuilder.build(), inputDestination, outputTargetCoders);
   }
 
@@ -92,7 +95,7 @@ public class ProcessBundleDescriptors {
       PCollectionNode inputPCollection,
       Components components,
       ApiServiceDescriptor dataEndpoint,
-      ProcessBundleDescriptor.Builder bundleDescriptorBuilder) {
+      ProcessBundleDescriptor.Builder bundleDescriptorBuilder) throws IOException {
     String inputWireCoderId = addWireCoder(inputPCollection, components, bundleDescriptorBuilder);
     RemoteGrpcPort inputPort =
         RemoteGrpcPort.newBuilder()
@@ -118,7 +121,7 @@ public class ProcessBundleDescriptors {
       Components components,
       ApiServiceDescriptor dataEndpoint,
       Builder bundleDescriptorBuilder,
-      PCollectionNode outputPCollection) {
+      PCollectionNode outputPCollection) throws IOException {
     String outputWireCoderId = addWireCoder(outputPCollection, components, bundleDescriptorBuilder);
 
     RemoteGrpcPort outputPort =
@@ -169,7 +172,7 @@ public class ProcessBundleDescriptors {
   }
 
   private static MessageWithComponents getWireCoder(
-      PCollectionNode pCollectionNode, Components components, Function<String, Boolean> usedIds) {
+      PCollectionNode pCollectionNode, Components components, Predicate<String> usedIds) {
     String elementCoderId = pCollectionNode.getPCollection().getCoderId();
     String windowingStrategyId = pCollectionNode.getPCollection().getWindowingStrategyId();
     String windowCoderId =
@@ -194,23 +197,26 @@ public class ProcessBundleDescriptors {
         false);
   }
 
-  private static String uniquifyId(String idBase, Function<String, Boolean> idUsed) {
-    if (!idUsed.apply(idBase)) {
+  private static String uniquifyId(String idBase, Predicate<String> idUsed) {
+    if (!idUsed.test(idBase)) {
       return idBase;
     }
     int i = 0;
-    while (idUsed.apply(String.format("%s_%s", idBase, i))) {
+    while (idUsed.test(String.format("%s_%s", idBase, i))) {
       i++;
     }
     return String.format("%s_%s", idBase, i);
   }
 
   private static Coder<WindowedValue<?>> instantiateWireCoder(
-      RemoteGrpcPort port, Map<String, RunnerApi.Coder> coders) {
-    RunnerApi.Coder coderProto = coders.get(port.getCoderId());
-    checkArgument(
-        coderProto != null, "Unknown %s %s", Coder.class.getSimpleName(), port.getCoderId());
-    Coder<?> javaCoder = CoderTranslation.knownCoderOrByteArrayCoder(coderProto, coders);
+      RemoteGrpcPort port, Map<String, RunnerApi.Coder> components) throws IOException {
+    MessageWithComponents byteArrayCoder =
+        LengthPrefixUnknownCoders.forCoder(
+            port.getCoderId(), Components.newBuilder().putAllCoders(components).build(), true);
+    Coder<?> javaCoder =
+        CoderTranslation.fromProto(
+            byteArrayCoder.getCoder(),
+            RehydratedComponents.forComponents(byteArrayCoder.getComponents()));
     checkArgument(
         javaCoder instanceof WindowedValue.FullWindowedValueCoder,
         "Unexpected Deserialized %s type, expected %s, got %s",
@@ -222,12 +228,12 @@ public class ProcessBundleDescriptors {
 
   /** */
   @AutoValue
-  public abstract static class SimpleProcessBundleDescriptor {
-    public static SimpleProcessBundleDescriptor of(
+  public abstract static class ExecutableProcessBundleDescriptor {
+    public static ExecutableProcessBundleDescriptor of(
         ProcessBundleDescriptor descriptor,
         RemoteInputDestination<WindowedValue<?>> inputDestination,
         Map<BeamFnApi.Target, Coder<WindowedValue<?>>> outputTargetCoders) {
-      return new AutoValue_ProcessBundleDescriptors_SimpleProcessBundleDescriptor(
+      return new AutoValue_ProcessBundleDescriptors_ExecutableProcessBundleDescriptor(
           descriptor, inputDestination, Collections.unmodifiableMap(outputTargetCoders));
     }
 
@@ -240,7 +246,7 @@ public class ProcessBundleDescriptors {
     public abstract RemoteInputDestination<WindowedValue<?>> getRemoteInputDestination();
 
     /**
-     * Get all of the targets materialized by this {@link SimpleProcessBundleDescriptor} and the
+     * Get all of the targets materialized by this {@link ExecutableProcessBundleDescriptor} and the
      * java {@link Coder} for the wire format of that {@link BeamFnApi.Target}.
      */
     public abstract Map<BeamFnApi.Target, Coder<WindowedValue<?>>> getOutputTargetCoders();

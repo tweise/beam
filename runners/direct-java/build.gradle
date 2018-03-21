@@ -51,7 +51,6 @@ dependencies {
   shadow library.java.junit
   shadowTest project(path: ":sdks:java:core", configuration: "shadowTest")
   shadowTest project(path: ":runners:core-java", configuration: "shadowTest")
-  shadowTest project(":model:fn-execution").sourceSets.test.output
   shadowTest library.java.guava_testlib
   shadowTest library.java.slf4j_jdk14
   shadowTest library.java.mockito_core
@@ -70,7 +69,7 @@ task needsRunnerTests(type: Test) {
   group = "Verification"
   description = "Runs tests that require a runner to validate that piplines/transforms work correctly"
 
-  def pipelineOptions = JsonOutput.toJson(["--runner=DirectRunner", "--runnerDeterminedSharding=false"])
+  def pipelineOptions = JsonOutput.toJson(["--runner=DirectRunner", "--runnerDeterminedSharding=false", "--protoTranslation"])
   systemProperty "beamTestPipelineOptions", pipelineOptions
 
   classpath = configurations.needsRunner

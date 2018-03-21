@@ -18,13 +18,9 @@
 
 package org.apache.beam.runners.core.construction.graph;
 
-import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import com.google.common.collect.ComparisonChain;
 import com.google.common.collect.Iterables;
 import com.google.common.graph.MutableNetwork;
 import com.google.common.graph.Network;
@@ -32,14 +28,12 @@ import com.google.common.graph.NetworkBuilder;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
-import javax.annotation.Nonnull;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
@@ -68,19 +62,16 @@ public class QueryablePipeline {
    * within the provided components.
    */
   public static QueryablePipeline forPrimitivesIn(Components components) {
-    return forComponents(retainOnlyPrimitives(components));
+    return new QueryablePipeline(getPrimitiveTransformIds(components), components);
   }
 
   /**
-   * Create a new {@link QueryablePipeline} based on the provided components.
-   *
-   * <p>Relationships between composite transforms and their subtransforms, and producer
-   * relationships between {@link PTransformNode transforms} and {@link PCollectionNode
-   * PCollections} are not yet modelled by {@link QueryablePipeline}, so the input {@link
-   * Components} should be treatable as though each node is a primitive.
+   * Create a new {@link QueryablePipeline} based on the provided components containing only the
+   * provided {@code transformIds}.
    */
-  static QueryablePipeline forComponents(Components components) {
-    return new QueryablePipeline(components);
+  public static QueryablePipeline forTransforms(
+      Collection<String> transformIds, Components components) {
+    return new QueryablePipeline(transformIds, components);
   }
 
   private final Components components;
@@ -98,24 +89,23 @@ public class QueryablePipeline {
    */
   private final Network<PipelineNode, PipelineEdge> pipelineNetwork;
 
-  private QueryablePipeline(Components components) {
+  private QueryablePipeline(Collection<String> transformIds, Components components) {
     this.components = components;
-    this.pipelineNetwork = buildNetwork(this.components);
+    this.pipelineNetwork = buildNetwork(transformIds, this.components);
   }
 
   /** Produces a {@link RunnerApi.Components} which contains only primitive transforms. */
   @VisibleForTesting
-  static RunnerApi.Components retainOnlyPrimitives(RunnerApi.Components components) {
-    RunnerApi.Components.Builder flattenedBuilder = components.toBuilder();
-    flattenedBuilder.clearTransforms();
+  static Collection<String> getPrimitiveTransformIds(RunnerApi.Components components) {
+    Collection<String> ids = new LinkedHashSet<>();
     for (Map.Entry<String, PTransform> transformEntry : components.getTransformsMap().entrySet()) {
       PTransform transform = transformEntry.getValue();
       boolean isPrimitive = isPrimitiveTransform(transform);
       if (isPrimitive) {
-        flattenedBuilder.putTransforms(transformEntry.getKey(), transform);
+        ids.add(transformEntry.getKey());
       }
     }
-    return flattenedBuilder.build();
+    return ids;
   }
 
   /**
@@ -130,13 +120,13 @@ public class QueryablePipeline {
         && !transform.getInputsMap().values().containsAll(transform.getOutputsMap().values());
   }
 
-  private MutableNetwork<PipelineNode, PipelineEdge> buildNetwork(Components components) {
+  private MutableNetwork<PipelineNode, PipelineEdge> buildNetwork(
+      Collection<String> transformIds, Components components) {
     MutableNetwork<PipelineNode, PipelineEdge> network =
         NetworkBuilder.directed().allowsParallelEdges(true).allowsSelfLoops(false).build();
     Set<PCollectionNode> unproducedCollections = new HashSet<>();
-    for (Map.Entry<String, PTransform> transformEntry : components.getTransformsMap().entrySet()) {
-      String transformId = transformEntry.getKey();
-      PTransform transform = transformEntry.getValue();
+    for (String transformId : transformIds) {
+      PTransform transform = components.getTransformsOrThrow(transformId);
       PTransformNode transformNode =
           PipelineNode.pTransform(transformId, this.components.getTransformsOrThrow(transformId));
       network.addNode(transformNode);
@@ -145,7 +135,7 @@ public class QueryablePipeline {
             PipelineNode.pCollection(produced, components.getPcollectionsOrThrow(produced));
         network.addNode(producedNode);
         network.addEdge(transformNode, producedNode, new PerElementEdge());
-        checkState(
+        checkArgument(
             network.inDegree(producedNode) == 1,
             "A %s should have exactly one producing %s, %s has %s",
             PCollectionNode.class.getSimpleName(),
@@ -172,50 +162,12 @@ public class QueryablePipeline {
         }
       }
     }
-    checkState(
+    checkArgument(
         unproducedCollections.isEmpty(),
         "%ss %s were consumed but never produced",
         PCollectionNode.class.getSimpleName(),
         unproducedCollections);
     return network;
-  }
-
-  // This enables a naive implementation of topological sort, instead of doing something clever.
-  // Nodes with lower weight precede nodes with higher weight, and are unrelated to nodes with
-  // equal weight
-  private final LoadingCache<PTransformNode, Long> nodeWeights =
-      CacheBuilder.newBuilder()
-          .build(
-              new CacheLoader<PTransformNode, Long>() {
-                @Override
-                public Long load(@Nonnull PTransformNode transformNode) {
-                  long parentWeight = 0L;
-                  for (String inputPCollectionId :
-                      transformNode.getTransform().getInputsMap().values()) {
-                    PTransformNode upstream =
-                        getProducer(
-                            PipelineNode.pCollection(
-                                inputPCollectionId,
-                                components.getPcollectionsOrThrow(inputPCollectionId)));
-                    parentWeight += nodeWeights.getUnchecked(upstream);
-                  }
-                  return 1 + parentWeight;
-                }
-              });
-
-  public Iterable<PTransformNode> getTopologicallyOrderedTransforms() {
-    Comparator<PTransformNode> cmp = (left, right) -> ComparisonChain.start()
-        .compare(nodeWeights.getUnchecked(left), nodeWeights.getUnchecked(right))
-        .compare(left.getId(), right.getId())
-        .result();
-    return pipelineNetwork
-        .nodes()
-        .stream()
-        .filter(node -> node instanceof PTransformNode)
-        .map(PTransformNode.class::cast)
-        .collect(
-            Collectors.toCollection(
-                () -> new TreeSet<>(cmp)));
   }
 
   /**
@@ -228,19 +180,6 @@ public class QueryablePipeline {
         .stream()
         .filter(pipelineNode -> pipelineNetwork.inEdges(pipelineNode).isEmpty())
         .map(pipelineNode -> (PTransformNode) pipelineNode)
-        .collect(Collectors.toSet());
-  }
-
-  /**
-   * Get the PCollections which are not consumed by any {@link PTransformNode} in this {@link
-   * QueryablePipeline}.
-   */
-  private Set<PCollectionNode> getLeafPCollections() {
-    return pipelineNetwork
-        .nodes()
-        .stream()
-        .filter(pipelineNode -> pipelineNetwork.outEdges(pipelineNode).isEmpty())
-        .map(pipelineNode -> (PCollectionNode) pipelineNode)
         .collect(Collectors.toSet());
   }
 

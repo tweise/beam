@@ -57,7 +57,7 @@ public class GrpcStateServiceTest {
   @Before
   public void setUp() throws Exception {
     MockitoAnnotations.initMocks(this);
-    stateService = GrpcStateService.create();
+    stateService = new GrpcStateService();
   }
 
   /**

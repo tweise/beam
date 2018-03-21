@@ -20,6 +20,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import contextlib
 import logging
 import Queue as queue
 import sys
@@ -57,6 +58,7 @@ class SdkHarness(object):
     self._fns = {}
     self._responses = queue.Queue()
     self._process_bundle_queue = queue.Queue()
+    self._unscheduled_process_bundle = set()
     logging.info('Initializing SDKHarness with %s workers.', self._worker_count)
 
   def run(self):
@@ -147,6 +149,7 @@ class SdkHarness(object):
       work = self._process_bundle_queue.get()
       # add the instuction_id vs worker map for progress reporting lookup
       self._instruction_id_vs_worker[work.instruction_id] = worker
+      self._unscheduled_process_bundle.discard(work.instruction_id)
       try:
         self._execute(lambda: worker.do_instruction(work), work)
       finally:
@@ -157,14 +160,26 @@ class SdkHarness(object):
 
     # Create a task for each process_bundle request and schedule it
     self._process_bundle_queue.put(request)
+    self._unscheduled_process_bundle.add(request.instruction_id)
     self._process_thread_pool.submit(task)
 
   def _request_process_bundle_progress(self, request):
 
     def task():
-      self._execute(lambda: self._instruction_id_vs_worker[getattr(
-          request, request.WhichOneof('request')
-      ).instruction_reference].do_instruction(request), request)
+      instruction_reference = getattr(
+          request, request.WhichOneof('request')).instruction_reference
+      if self._instruction_id_vs_worker.has_key(instruction_reference):
+        self._execute(
+            lambda: self._instruction_id_vs_worker[
+                instruction_reference
+            ].do_instruction(request), request)
+      else:
+        self._execute(lambda: beam_fn_api_pb2.InstructionResponse(
+            instruction_id=request.instruction_id, error=(
+                'Process bundle request not yet scheduled for instruction {}' if
+                instruction_reference in self._unscheduled_process_bundle else
+                'Unknown process bundle instruction {}').format(
+                    instruction_reference)), request)
 
     self._progress_thread_pool.submit(task)
 
@@ -199,7 +214,8 @@ class SdkWorker(object):
             self.fns[request.process_bundle_descriptor_reference],
             self.state_handler, self.data_channel_factory)
     try:
-      processor.process_bundle(instruction_id)
+      with self.state_handler.process_instruction_id(instruction_id):
+        processor.process_bundle(instruction_id)
     finally:
       del self.bundle_processors[instruction_id]
 
@@ -228,10 +244,21 @@ class GrpcStateHandler(object):
     self._responses_by_id = {}
     self._last_id = 0
     self._exc_info = None
+    self._context = threading.local()
+
+  @contextlib.contextmanager
+  def process_instruction_id(self, bundle_id):
+    if getattr(self._context, 'process_instruction_id', None) is not None:
+      raise RuntimeError(
+          'Already bound to %r' % self._context.process_instruction_id)
+    self._context.process_instruction_id = bundle_id
+    try:
+      yield
+    finally:
+      self._context.process_instruction_id = None
 
   def start(self):
     self._done = False
-    return # TODO(axelmagn): remove me!
 
     def request_iter():
       while True:
@@ -243,7 +270,6 @@ class GrpcStateHandler(object):
     responses = self._state_stub.State(request_iter())
 
     def pull_responses():
-      return # TODO(axelmagn): remove me!
       try:
         for response in responses:
           self._responses_by_id[response.id].set(response)
@@ -259,38 +285,32 @@ class GrpcStateHandler(object):
 
   def done(self):
     self._done = True
-    return # TODO(axelmagn): remove me!
     self._requests.put(self._DONE)
 
-  def blocking_get(self, state_key, instruction_reference):
-    raise NotImplementedError # TODO(axelmagn): remove me!
+  def blocking_get(self, state_key):
     response = self._blocking_request(
         beam_fn_api_pb2.StateRequest(
-            instruction_reference=instruction_reference,
             state_key=state_key,
             get=beam_fn_api_pb2.StateGetRequest()))
     if response.get.continuation_token:
       raise NotImplementedError
     return response.get.data
 
-  def blocking_append(self, state_key, data, instruction_reference):
-    raise NotImplementedError # TODO(axelmagn): remove me!
+  def blocking_append(self, state_key, data):
     self._blocking_request(
         beam_fn_api_pb2.StateRequest(
-            instruction_reference=instruction_reference,
             state_key=state_key,
             append=beam_fn_api_pb2.StateAppendRequest(data=data)))
 
-  def blocking_clear(self, state_key, instruction_reference):
-    raise NotImplementedError # TODO(axelmagn): remove me!
+  def blocking_clear(self, state_key):
     self._blocking_request(
         beam_fn_api_pb2.StateRequest(
-            instruction_reference=instruction_reference,
             state_key=state_key,
             clear=beam_fn_api_pb2.StateClearRequest()))
 
   def _blocking_request(self, request):
     request.id = self._next_id()
+    request.instruction_reference = self._context.process_instruction_id
     self._responses_by_id[request.id] = future = _Future()
     self._requests.put(request)
     while not future.wait(timeout=1):
@@ -300,7 +320,11 @@ class GrpcStateHandler(object):
       elif self._done:
         raise RuntimeError()
     del self._responses_by_id[request.id]
-    return future.get()
+    response = future.get()
+    if response.error:
+      raise RuntimeError(response.error)
+    else:
+      return response
 
   def _next_id(self):
     self._last_id += 1

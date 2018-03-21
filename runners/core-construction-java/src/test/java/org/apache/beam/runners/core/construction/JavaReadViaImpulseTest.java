@@ -58,8 +58,8 @@ import org.junit.runners.JUnit4;
 public class JavaReadViaImpulseTest {
   @Rule public TestPipeline p = TestPipeline.create();
 
-  @Category(NeedsRunner.class)
   @Test
+  @Category(NeedsRunner.class)
   public void testBoundedRead() {
     PCollection<Long> read = p.apply(JavaReadViaImpulse.bounded(CountingSource.upTo(10L)));
 

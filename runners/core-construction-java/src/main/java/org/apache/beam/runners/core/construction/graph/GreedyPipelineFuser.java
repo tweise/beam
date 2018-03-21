@@ -72,8 +72,9 @@ public class GreedyPipelineFuser {
   /**
    * Fuses a {@link Pipeline} into a collection of {@link ExecutableStage}s.
    *
-   * <p>This fuser expects each PTransform to have exactly one input. This means that pipelines must
-   * use Impulse/ParDo transformations rather than read nodes. The utilities in
+   * <p>This fuser expects each ExecutableStage to have exactly one input. This means that pipelines
+   * must be rooted at Impulse, or other runner-executed primitive transforms, instead of primitive
+   * Read nodes. The utilities in
    * {@link org.apache.beam.runners.core.construction.JavaReadViaImpulse} can be used to translate
    * non-compliant pipelines.
    */

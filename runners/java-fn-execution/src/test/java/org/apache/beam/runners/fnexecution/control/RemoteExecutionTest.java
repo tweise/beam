@@ -49,12 +49,12 @@ import org.apache.beam.runners.core.construction.graph.FusedPipeline;
 import org.apache.beam.runners.core.construction.graph.GreedyPipelineFuser;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.InProcessServerFactory;
-import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors.SimpleProcessBundleDescriptor;
+import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors.ExecutableProcessBundleDescriptor;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient.ActiveBundle;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient.BundleProcessor;
-import org.apache.beam.runners.fnexecution.control.SdkHarnessClient.RemoteInputDestination;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient.RemoteOutputReceiver;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
+import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
 import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.logging.Slf4jLogWriter;
 import org.apache.beam.sdk.Pipeline;
@@ -177,7 +177,7 @@ public class RemoteExecutionTest implements Serializable {
     checkState(fused.getFusedStages().size() == 1, "Expected exactly one fused stage");
     ExecutableStage stage = fused.getFusedStages().iterator().next();
 
-    SimpleProcessBundleDescriptor descriptor =
+    ExecutableProcessBundleDescriptor descriptor =
         ProcessBundleDescriptors.fromExecutableStage(
             "my_stage", stage, components, dataServer.getApiServiceDescriptor());
     // TODO: This cast is nonsense
