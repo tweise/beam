@@ -17,14 +17,25 @@
  */
 package org.apache.beam.runners.flink;
 
+import com.google.common.collect.Iterables;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.core.construction.graph.PipelineNode;
 import org.apache.beam.runners.core.construction.graph.QueryablePipeline;
+import org.apache.beam.runners.flink.translation.types.CoderTypeInformation;
+import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.VoidCoder;
 import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
+import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TupleTag;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.util.Collector;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -113,11 +124,68 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
                     id));
   }
 
-  public void translateFlatten(
+  public <T>  void translateFlatten(
           String id,
           RunnerApi.Pipeline pipeline,
           StreamingTranslationContext context) {
-    throw new UnsupportedOperationException();
+    Map<String, String> allInputs =
+            pipeline.getComponents().getTransformsOrThrow(id).getInputsMap();
+
+    if (allInputs.isEmpty()) {
+
+      // create an empty dummy source to satisfy downstream operations
+      // we cannot create an empty source in Flink, therefore we have to
+      // add the flatMap that simply never forwards the single element
+      DataStreamSource<String> dummySource =
+              context.getExecutionEnvironment().fromElements("dummy");
+
+      DataStream<WindowedValue<T>> result =
+              dummySource
+                      .<WindowedValue<T>>flatMap(
+                              (s, collector) -> {
+                                // never return anything
+                              })
+                      .returns(
+                              new CoderTypeInformation<>(
+                                      WindowedValue.getFullCoder(
+                                              (Coder<T>) VoidCoder.of(), GlobalWindow.Coder.INSTANCE)));
+      context.addDataStream(Iterables.getOnlyElement(
+              pipeline.getComponents().getTransformsOrThrow(id).getOutputsMap().values()), result);
+    } else {
+      DataStream<T> result = null;
+
+      // Determine DataStreams that we use as input several times. For those, we need to uniquify
+      // input streams because Flink seems to swallow watermarks when we have a union of one and
+      // the same stream.
+      Map<DataStream<T>, Integer> duplicates = new HashMap<>();
+      for (String input : allInputs.values()) {
+        DataStream<T> current = context.getDataStreamOrThrow(input);
+        Integer oldValue = duplicates.put(current, 1);
+        if (oldValue != null) {
+          duplicates.put(current, oldValue + 1);
+        }
+      }
+
+      for (String input : allInputs.values()) {
+        DataStream<T> current = context.getDataStreamOrThrow(input);
+
+        final Integer timesRequired = duplicates.get(current);
+        if (timesRequired > 1) {
+          current = current.flatMap(new FlatMapFunction<T, T>() {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public void flatMap(T t, Collector<T> collector) throws Exception {
+              collector.collect(t);
+            }
+          });
+        }
+        result = (result == null) ? current : result.union(current);
+      }
+
+      context.addDataStream(Iterables.getOnlyElement(
+              pipeline.getComponents().getTransformsOrThrow(id).getOutputsMap().values()), result);
+    }
   }
 
   public void translateGroupByKey(
