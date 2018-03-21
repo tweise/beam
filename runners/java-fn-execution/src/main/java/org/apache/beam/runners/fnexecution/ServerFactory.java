@@ -114,6 +114,9 @@ public abstract class ServerFactory {
 
   }
 
+  /**
+   * UrlFactory.
+   */
   @FunctionalInterface
   public interface UrlFactory {
     String createUrl(String address, int port);

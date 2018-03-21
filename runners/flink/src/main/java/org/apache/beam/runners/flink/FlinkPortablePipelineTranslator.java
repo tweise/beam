@@ -6,11 +6,16 @@ import org.apache.beam.sdk.options.PipelineOptions;
 /** Interface for portable pipeline translators. */
 public interface FlinkPortablePipelineTranslator<T> {
 
-  // Shared between batch and streaming
+  /**
+   * TranslationContext, shared between batch and streaming.
+   */
   interface TranslationContext {
     PipelineOptions getPipelineOptions();
   }
 
+  /**
+   * TranslationContextImpl, shared between batch and streaming.
+   */
   abstract class TranslationContextImpl
           implements TranslationContext {
     private final PipelineOptions pipelineOptions;

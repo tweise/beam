@@ -34,14 +34,16 @@ public class DockerWrapperTest {
   @Test
   public void helloWorld() throws Exception {
     DockerWrapper docker = getWrapper();
-    String container = docker.runImage("hello-world", Collections.emptyList());
+    String container = docker.runImage("hello-world", Collections.emptyList(),
+            Collections.emptyList());
     System.out.printf("Started container: %s%n", container);
   }
 
   @Test
   public void killContainer() throws Exception {
     DockerWrapper docker = getWrapper();
-    String container = docker.runImage("debian", Arrays.asList("/bin/bash", "-c", "sleep 60"));
+    String container = docker.runImage("debian", Arrays.asList("/bin/bash", "-c", "sleep 60"),
+            Collections.emptyList());
     docker.killContainer(container);
   }
 

@@ -18,6 +18,8 @@
 package org.apache.beam.runners.flink;
 
 import com.google.common.collect.Iterables;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
@@ -29,16 +31,11 @@ import org.apache.beam.sdk.coders.VoidCoder;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.util.WindowedValue;
-import org.apache.beam.sdk.values.PValue;
-import org.apache.beam.sdk.values.TupleTag;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Collector;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Translate an unbounded portable pipeline representation into a Flink pipeline representation.
@@ -117,7 +114,8 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
   }
 
   public void urnNotFound(
-          String id, RunnerApi.Pipeline pipeline, FlinkBatchPortablePipelineTranslator.TranslationContext context) {
+          String id, RunnerApi.Pipeline pipeline,
+          FlinkBatchPortablePipelineTranslator.TranslationContext context) {
     throw new IllegalArgumentException(
             String.format("Unknown type of URN %s for PTrasnform with id %s.",
                     pipeline.getComponents().getTransformsOrThrow(id).getSpec().getUrn(),
@@ -148,7 +146,8 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
                       .returns(
                               new CoderTypeInformation<>(
                                       WindowedValue.getFullCoder(
-                                              (Coder<T>) VoidCoder.of(), GlobalWindow.Coder.INSTANCE)));
+                                              (Coder<T>) VoidCoder.of(),
+                                              GlobalWindow.Coder.INSTANCE)));
       context.addDataStream(Iterables.getOnlyElement(
               pipeline.getComponents().getTransformsOrThrow(id).getOutputsMap().values()), result);
     } else {

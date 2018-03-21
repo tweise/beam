@@ -80,7 +80,8 @@ public class SingletonDockerEnvironmentManagerTest {
 
   @Test
   public void createsCorrectEnvironment() throws Exception {
-    when(docker.runImage(Mockito.eq(IMAGE_NAME), Mockito.any())).thenReturn(CONTAINER_ID);
+    when(docker.runImage(Mockito.eq(IMAGE_NAME), Mockito.any(),
+            Mockito.any())).thenReturn(CONTAINER_ID);
     SingletonDockerEnvironmentManager manager = getManager();
 
     RemoteEnvironment handle = manager.getEnvironment(ENVIRONMENT);
@@ -90,7 +91,8 @@ public class SingletonDockerEnvironmentManagerTest {
 
   @Test
   public void destroysCorrectContainer() throws Exception {
-    when(docker.runImage(Mockito.eq(IMAGE_NAME), Mockito.any())).thenReturn(CONTAINER_ID);
+    when(docker.runImage(Mockito.eq(IMAGE_NAME), Mockito.any(),
+            Mockito.any())).thenReturn(CONTAINER_ID);
     SingletonDockerEnvironmentManager manager = getManager();
 
     RemoteEnvironment handle = manager.getEnvironment(ENVIRONMENT);
@@ -100,7 +102,8 @@ public class SingletonDockerEnvironmentManagerTest {
 
   @Test
   public void onlyAcceptsSingleEnvironment() throws Exception {
-    when(docker.runImage(Mockito.eq(IMAGE_NAME), Mockito.any())).thenReturn(CONTAINER_ID);
+    when(docker.runImage(Mockito.eq(IMAGE_NAME), Mockito.any(),
+            Mockito.any())).thenReturn(CONTAINER_ID);
     SingletonDockerEnvironmentManager manager = getManager();
 
     manager.getEnvironment(ENVIRONMENT);

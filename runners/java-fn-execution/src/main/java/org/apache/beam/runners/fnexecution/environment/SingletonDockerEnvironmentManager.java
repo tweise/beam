@@ -96,8 +96,10 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
       throws IOException, TimeoutException, InterruptedException {
     // TODO: Generate environment id correctly.
     String environmentId = Long.toString(-123);
-    Path workerPersistentDirectory = Files.createTempDirectory(Paths.get("/tmp"), "worker_persistent_directory");
-    Path semiPersistentDirectory = Files.createTempDirectory(Paths.get("/tmp"), "semi_persistent_dir");
+    Path workerPersistentDirectory = Files.createTempDirectory(Paths.get("/tmp"),
+            "worker_persistent_directory");
+    Path semiPersistentDirectory = Files.createTempDirectory(Paths.get("/tmp"),
+            "semi_persistent_dir");
     //Path semiPersistentDirectory = Paths.get("/tmp");
     String containerImage = environment.getUrl();
     // TODO: The default service address will not work for Docker for Mac.
