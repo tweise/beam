@@ -107,6 +107,8 @@ public class JobResourceEnvironmentSession implements EnvironmentSession {
     // TODO: eventually use this for reference counting open sessions.
     this.isClosed = true;
     client.close();
-    dataServer.close();
+    // TODO: Close data server when we solve bundle completion/channel close races between runners
+    // and SDK harnesses.
+    // dataServer.close();
   }
 }
