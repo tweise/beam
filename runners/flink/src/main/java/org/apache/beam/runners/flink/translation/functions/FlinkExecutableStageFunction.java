@@ -38,7 +38,9 @@ import org.apache.beam.runners.flink.execution.SdkHarnessManager;
 import org.apache.beam.runners.flink.execution.SingletonSdkHarnessManager;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors;
+import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors.ExecutableProcessBundleDescriptor;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
+import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
@@ -64,7 +66,7 @@ public class FlinkExecutableStageFunction<InputT> extends
 
   private transient EnvironmentSession session;
   private transient SdkHarnessClient client;
-  private transient ProcessBundleDescriptors.SimpleProcessBundleDescriptor processBundleDescriptor;
+  private transient ExecutableProcessBundleDescriptor processBundleDescriptor;
 
   public FlinkExecutableStageFunction(RunnerApi.ExecutableStagePayload payload,
       RunnerApi.Components components,
@@ -107,9 +109,9 @@ public class FlinkExecutableStageFunction<InputT> extends
         "ProcessBundleDescriptor not prepared");
     // NOTE: A double-cast is necessary below in order to hide pseudo-covariance from the compiler.
     @SuppressWarnings("unchecked")
-    SdkHarnessClient.RemoteInputDestination<WindowedValue<InputT>> destination =
-        (SdkHarnessClient.RemoteInputDestination<WindowedValue<InputT>>)
-        (SdkHarnessClient.RemoteInputDestination<?>)
+    RemoteInputDestination<WindowedValue<InputT>> destination =
+        (RemoteInputDestination<WindowedValue<InputT>>)
+        (RemoteInputDestination<?>)
             processBundleDescriptor.getRemoteInputDestination();
     SdkHarnessClient.BundleProcessor<InputT> processor = client.getProcessor(
         processBundleDescriptor.getProcessBundleDescriptor(), destination);

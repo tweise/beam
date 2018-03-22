@@ -76,9 +76,8 @@ public class FlinkJobInvocation implements JobInvocation {
     MetricsEnvironment.setMetricsSupported(true);
 
     LOG.info("Translating pipeline to Flink program.");
-    RunnerApi.Components components = pipeline.getComponents();
     // Fused pipeline proto.
-    RunnerApi.Pipeline fusedPipeline = GreedyPipelineFuser.fuse(pipeline).toPipeline(components);
+    RunnerApi.Pipeline fusedPipeline = GreedyPipelineFuser.fuse(pipeline).toPipeline();
 
     FlinkBatchPortablePipelineTranslator translator = new FlinkBatchPortablePipelineTranslator();
     FlinkBatchPortablePipelineTranslator.BatchTranslationContext context =

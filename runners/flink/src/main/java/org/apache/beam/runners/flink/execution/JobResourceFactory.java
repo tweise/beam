@@ -3,13 +3,16 @@ package org.apache.beam.runners.flink.execution;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
+import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi.ProvisionInfo;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.ServerFactory;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.artifact.GrpcArtifactProxyService;
-import org.apache.beam.runners.fnexecution.control.SdkHarnessClientControlService;
+import org.apache.beam.runners.fnexecution.control.FnApiControlClient;
+import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
+import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
 import org.apache.beam.runners.fnexecution.environment.DockerWrapper;
 import org.apache.beam.runners.fnexecution.environment.EnvironmentManager;
@@ -19,6 +22,7 @@ import org.apache.beam.runners.fnexecution.logging.LogWriter;
 import org.apache.beam.runners.fnexecution.logging.Slf4jLogWriter;
 import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
 import org.apache.beam.runners.fnexecution.state.GrpcStateService;
+import org.apache.beam.sdk.util.ThrowingSupplier;
 
 /**
  * Factory for resources that are managed by {@link JobResourceManager}.
@@ -59,10 +63,10 @@ public class JobResourceFactory {
   }
 
   /** Create a new control service. */
-  private GrpcFnServer<SdkHarnessClientControlService> controlService(GrpcDataService dataService)
-      throws IOException {
-    SdkHarnessClientControlService controlService =
-        SdkHarnessClientControlService.create(() -> dataService);
+  public GrpcFnServer<FnApiControlClientPoolService> controlService(
+      ThrowingConsumer<FnApiControlClient> clientPool) throws IOException {
+    FnApiControlClientPoolService controlService =
+        FnApiControlClientPoolService.offeringClientsToPool(clientPool);
     return GrpcFnServer.allocatePortAndCreateFor(controlService, serverFactory);
   }
 
@@ -79,16 +83,18 @@ public class JobResourceFactory {
 
   /** Create a new container manager from artifact source and jobInfo. */
   EnvironmentManager containerManager(
-      ArtifactSource artifactSource, ProvisionInfo jobInfo, GrpcDataService dataService)
-      throws IOException {
+      ArtifactSource artifactSource,
+      ProvisionInfo jobInfo,
+      GrpcFnServer<FnApiControlClientPoolService> controlService,
+      ThrowingSupplier<InstructionRequestHandler> requestHandler) throws IOException {
     return SingletonDockerEnvironmentManager.forServices(
         // TODO: Replace hardcoded values with configurable ones
         DockerWrapper.forCommand("docker", Duration.ofSeconds(30)),
-        controlService(dataService),
+        controlService,
         loggingService(),
         artifactRetrievalService(artifactSource),
-        provisionService(jobInfo)
-    );
+        provisionService(jobInfo),
+        requestHandler);
   }
 
 }

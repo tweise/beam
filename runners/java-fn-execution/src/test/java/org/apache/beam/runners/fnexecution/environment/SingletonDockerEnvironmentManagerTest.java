@@ -20,6 +20,7 @@ package org.apache.beam.runners.fnexecution.environment;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.verify;
@@ -29,8 +30,8 @@ import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
-import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
-import org.apache.beam.runners.fnexecution.control.SdkHarnessClientControlService;
+import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
+import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
 import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
 import org.junit.Before;
@@ -57,13 +58,12 @@ public class SingletonDockerEnvironmentManagerTest {
 
   @Mock private DockerWrapper docker;
 
-  @Mock private GrpcFnServer<SdkHarnessClientControlService> controlServiceServer;
+  @Mock private GrpcFnServer<FnApiControlClientPoolService> controlServiceServer;
   @Mock private GrpcFnServer<GrpcLoggingService> loggingServiceServer;
   @Mock private GrpcFnServer<ArtifactRetrievalService> retrievalServiceServer;
   @Mock private GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer;
 
-  @Mock private SdkHarnessClientControlService clientControlService;
-  @Mock private SdkHarnessClient sdkHarnessClient;
+  @Mock private InstructionRequestHandler requestHandler;
 
   @Before
   public void initMocks() {
@@ -73,9 +73,6 @@ public class SingletonDockerEnvironmentManagerTest {
     when(loggingServiceServer.getApiServiceDescriptor()).thenReturn(SERVICE_DESCRIPTOR);
     when(retrievalServiceServer.getApiServiceDescriptor()).thenReturn(SERVICE_DESCRIPTOR);
     when(provisioningServiceServer.getApiServiceDescriptor()).thenReturn(SERVICE_DESCRIPTOR);
-
-    when(controlServiceServer.getService()).thenReturn(clientControlService);
-    when(clientControlService.getClient()).thenReturn(sdkHarnessClient);
   }
 
   @Test
@@ -85,7 +82,7 @@ public class SingletonDockerEnvironmentManagerTest {
     SingletonDockerEnvironmentManager manager = getManager();
 
     RemoteEnvironment handle = manager.getEnvironment(ENVIRONMENT);
-    assertThat(handle.getClient(), is(sdkHarnessClient));
+    assertSame(handle.getInstructionRequestHandler(), is(requestHandler));
     assertThat(handle.getEnvironment(), equalTo(ENVIRONMENT));
   }
 
@@ -122,7 +119,8 @@ public class SingletonDockerEnvironmentManagerTest {
         controlServiceServer,
         loggingServiceServer,
         retrievalServiceServer,
-        provisioningServiceServer);
+        provisioningServiceServer,
+        () -> requestHandler);
   }
 
 }

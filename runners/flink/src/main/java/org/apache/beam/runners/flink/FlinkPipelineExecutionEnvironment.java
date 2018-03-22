@@ -103,9 +103,8 @@ class FlinkPipelineExecutionEnvironment {
       // trip here.
       // Unfused pipeline proto.
       pipelineProto = PipelineTranslation.toProto(pipeline);
-      RunnerApi.Components components = pipelineProto.getComponents();
       // Fused pipeline proto.
-      pipelineProto = GreedyPipelineFuser.fuse(pipelineProto).toPipeline(components);
+      pipelineProto = GreedyPipelineFuser.fuse(pipelineProto).toPipeline();
       try {
         pipeline = PipelineTranslation.fromProto(pipelineProto);
       } catch (IOException e) {
