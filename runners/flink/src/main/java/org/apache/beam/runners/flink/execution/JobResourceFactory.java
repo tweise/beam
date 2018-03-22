@@ -10,7 +10,6 @@ import org.apache.beam.runners.fnexecution.ServerFactory;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.artifact.GrpcArtifactProxyService;
-import org.apache.beam.runners.fnexecution.control.FnApiControlClient;
 import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
 import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
@@ -64,7 +63,7 @@ public class JobResourceFactory {
 
   /** Create a new control service. */
   public GrpcFnServer<FnApiControlClientPoolService> controlService(
-      ThrowingConsumer<FnApiControlClient> clientPool) throws IOException {
+      ThrowingConsumer<InstructionRequestHandler> clientPool) throws IOException {
     FnApiControlClientPoolService controlService =
         FnApiControlClientPoolService.offeringClientsToPool(clientPool);
     return GrpcFnServer.allocatePortAndCreateFor(controlService, serverFactory);

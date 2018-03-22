@@ -33,11 +33,11 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
     implements FnService {
   private static final Logger LOGGER = LoggerFactory.getLogger(FnApiControlClientPoolService.class);
 
-  private final ThrowingConsumer<FnApiControlClient> clientPool;
+  private final ThrowingConsumer<InstructionRequestHandler> clientPool;
   private final Collection<FnApiControlClient> vendedClients = new CopyOnWriteArrayList<>();
   private AtomicBoolean closed = new AtomicBoolean();
 
-  private FnApiControlClientPoolService(ThrowingConsumer<FnApiControlClient> clientPool) {
+  private FnApiControlClientPoolService(ThrowingConsumer<InstructionRequestHandler> clientPool) {
     this.clientPool = clientPool;
   }
 
@@ -49,7 +49,7 @@ public class FnApiControlClientPoolService extends BeamFnControlGrpc.BeamFnContr
    * That consumer is responsible for closing the clients when they are no longer needed.
    */
   public static FnApiControlClientPoolService offeringClientsToPool(
-      ThrowingConsumer<FnApiControlClient> clientPool) {
+      ThrowingConsumer<InstructionRequestHandler> clientPool) {
     return new FnApiControlClientPoolService(clientPool);
   }
 
