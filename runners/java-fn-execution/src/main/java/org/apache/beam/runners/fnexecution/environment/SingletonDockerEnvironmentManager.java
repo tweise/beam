@@ -19,20 +19,20 @@ package org.apache.beam.runners.fnexecution.environment;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.TimeoutException;
 import java.util.logging.Logger;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
-import org.apache.beam.runners.fnexecution.control.SdkHarnessClientControlService;
+import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
+import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
 import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
+import org.apache.beam.sdk.util.ThrowingSupplier;
 
 /** An {@link EnvironmentManager} that manages a single docker container. Not thread-safe. */
 public class SingletonDockerEnvironmentManager implements EnvironmentManager {
@@ -42,33 +42,37 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
 
   public static SingletonDockerEnvironmentManager forServices(
       DockerWrapper docker,
-      GrpcFnServer<SdkHarnessClientControlService> controlServiceServer,
+      GrpcFnServer<FnApiControlClientPoolService> controlServiceServer,
       GrpcFnServer<GrpcLoggingService> loggingServiceServer,
       GrpcFnServer<ArtifactRetrievalService> retrievalServiceServer,
-      GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer) {
+      GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer,
+      ThrowingSupplier<InstructionRequestHandler> requestHandler) {
     return new SingletonDockerEnvironmentManager(docker, controlServiceServer, loggingServiceServer,
-        retrievalServiceServer, provisioningServiceServer);
+        retrievalServiceServer, provisioningServiceServer, requestHandler);
   }
 
   private final DockerWrapper docker;
-  private final GrpcFnServer<SdkHarnessClientControlService> controlServiceServer;
+  private final GrpcFnServer<FnApiControlClientPoolService> controlServiceServer;
   private final GrpcFnServer<GrpcLoggingService> loggingServiceServer;
   private final GrpcFnServer<ArtifactRetrievalService> retrievalServiceServer;
   private final GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer;
+  private final ThrowingSupplier<InstructionRequestHandler> requestHandler;
 
   private RemoteEnvironment dockerEnvironment = null;
 
   private SingletonDockerEnvironmentManager(
       DockerWrapper docker,
-      GrpcFnServer<SdkHarnessClientControlService> controlServiceServer,
+      GrpcFnServer<FnApiControlClientPoolService> controlServiceServer,
       GrpcFnServer<GrpcLoggingService> loggingServiceServer,
       GrpcFnServer<ArtifactRetrievalService> retrievalServiceServer,
-      GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer) {
+      GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer,
+      ThrowingSupplier<InstructionRequestHandler> requestHandler) {
     this.docker = docker;
     this.controlServiceServer = controlServiceServer;
     this.loggingServiceServer = loggingServiceServer;
     this.retrievalServiceServer = retrievalServiceServer;
     this.provisioningServiceServer = provisioningServiceServer;
+    this.requestHandler = requestHandler;
   }
 
   /**
@@ -92,8 +96,7 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
     return dockerEnvironment;
   }
 
-  private DockerContainerEnvironment createDockerEnv(Environment environment)
-      throws IOException, TimeoutException, InterruptedException {
+  private DockerContainerEnvironment createDockerEnv(Environment environment) throws Exception {
     // TODO: Generate environment id correctly.
     String environmentId = Long.toString(-123);
     Path workerPersistentDirectory = Files.createTempDirectory(Paths.get("/tmp"),
@@ -115,7 +118,7 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
     List<String> dockerArgs = Arrays.asList(
         "-v",
         String.format("%s:%s", workerPersistentDirectory, semiPersistentDirectory),
-        // TODO: This needs to be special-cased for Mac.
+        // NOTE: Host networking does not actually work for Mac.
         "--network=host");
     List<String> sdkHarnessArgs = Arrays.asList(
         String.format("--id=%s", environmentId),
@@ -127,7 +130,7 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
     String containerId = docker.runImage(containerImage, dockerArgs, sdkHarnessArgs);
     System.out.println("GOT ID: " + containerId);
     return DockerContainerEnvironment.create(docker, environment, containerId,
-        controlServiceServer.getService().getClient());
+        requestHandler.get());
   }
 
 }

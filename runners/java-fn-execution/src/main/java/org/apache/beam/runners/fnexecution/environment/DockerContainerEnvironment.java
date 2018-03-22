@@ -18,6 +18,7 @@
 package org.apache.beam.runners.fnexecution.environment;
 
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
+import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 
 /**
@@ -26,21 +27,21 @@ import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 class DockerContainerEnvironment implements RemoteEnvironment {
 
   static DockerContainerEnvironment create(DockerWrapper docker,
-      Environment environment, String containerId, SdkHarnessClient client) {
-    return new DockerContainerEnvironment(docker, environment, containerId, client);
+      Environment environment, String containerId, InstructionRequestHandler requestHandler) {
+    return new DockerContainerEnvironment(docker, environment, containerId, requestHandler);
   }
 
   private final DockerWrapper docker;
   private final Environment environment;
   private final String containerId;
-  private final SdkHarnessClient client;
+  private final InstructionRequestHandler requestHandler;
 
   private DockerContainerEnvironment(DockerWrapper docker, Environment environment,
-      String containerId, SdkHarnessClient client) {
+      String containerId, InstructionRequestHandler requestHandler) {
     this.docker = docker;
     this.environment = environment;
     this.containerId = containerId;
-    this.client = client;
+    this.requestHandler = requestHandler;
   }
 
   @Override
@@ -49,17 +50,15 @@ class DockerContainerEnvironment implements RemoteEnvironment {
   }
 
   @Override
-  public SdkHarnessClient getClient() {
-    return client;
+  public InstructionRequestHandler getInstructionRequestHandler() {
+    return requestHandler;
   }
 
   /**
-   * Closes this remote docker environment. The associated {@link SdkHarnessClient} must not be
-   * used after calling this.
+   * Closes this remote docker environment.
    */
   @Override
   public void close() throws Exception {
-    getClient().close();
     docker.killContainer(containerId);
   }
 }

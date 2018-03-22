@@ -36,8 +36,11 @@ public class GrpcStateService extends BeamFnStateGrpc.BeamFnStateImplBase
   private static final Logger LOG = LoggerFactory.getLogger(GrpcStateService.class);
   private final ConcurrentHashMap<String, StateRequestHandler> requestHandlers;
 
-  public GrpcStateService()
-      throws Exception {
+  public static GrpcStateService create() {
+    return new GrpcStateService();
+  }
+
+  private GrpcStateService() {
     this.requestHandlers = new ConcurrentHashMap<>();
   }
 
