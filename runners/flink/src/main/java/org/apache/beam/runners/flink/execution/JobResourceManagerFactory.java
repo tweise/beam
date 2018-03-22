@@ -5,6 +5,7 @@ import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.fnexecution.ServerFactory;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
+import org.apache.beam.runners.fnexecution.control.SynchronousControlClientPool;
 
 /**
  * A Factory which creates {@link JobResourceManager JobResourceManagers}.
@@ -26,6 +27,7 @@ public class JobResourceManagerFactory {
       ExecutorService executor) {
     JobResourceFactory jobResourceFactory = JobResourceFactory.create(serverFactory, executor);
     return JobResourceManager
-        .create(jobInfo, environment, artifactSource, jobResourceFactory);
+        .create(SynchronousControlClientPool.create(), jobInfo, environment, artifactSource,
+            jobResourceFactory);
   }
 }

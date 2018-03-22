@@ -2,14 +2,14 @@ package org.apache.beam.runners.flink.execution;
 
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertNotNull;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
+import org.apache.beam.runners.fnexecution.control.ControlClientPool;
 import org.apache.beam.runners.fnexecution.control.FnApiControlClientPoolService;
 import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
 import org.apache.beam.runners.fnexecution.data.GrpcDataService;
@@ -38,30 +38,37 @@ public class JobResourceManagerTest {
   private @Mock GrpcFnServer<GrpcStateService> stateServer;
   private @Mock GrpcDataService dataService;
   private @Mock InstructionRequestHandler requestHandler;
+  private @Mock ControlClientPool clientPool;
 
   private ThrowingSupplier<InstructionRequestHandler> requestHandlerSupplier = () -> requestHandler;
+  private ThrowingConsumer<InstructionRequestHandler> requestHandlerConsumer = (client) -> {};
 
   private JobResourceManager manager;
 
   @Before
   public void setUp() throws Exception {
     MockitoAnnotations.initMocks(this);
-    manager = JobResourceManager.create(jobInfo, environment, artifactSource, jobResourceFactory);
+    when(clientPool.getSink()).thenReturn(requestHandlerConsumer);
+    when(clientPool.getSource()).thenReturn(requestHandlerSupplier);
     when(jobResourceFactory.dataService()).thenReturn(dataServer);
     when(jobResourceFactory.stateService()).thenReturn(stateServer);
+    when(jobResourceFactory.controlService(requestHandlerConsumer)).thenReturn(controlServer);
     when(dataServer.getService()).thenReturn(dataService);
-    when(jobResourceFactory.containerManager(artifactSource, jobInfo, controlServer,
+    when(jobResourceFactory.containerManager(
+        artifactSource,
+        jobInfo,
+        controlServer,
         requestHandlerSupplier))
-        .thenReturn(containerManager);
+            .thenReturn(containerManager);
     when(containerManager.getEnvironment(environment)).thenReturn(remoteEnvironment);
+
+    manager = JobResourceManager.create(clientPool, jobInfo, environment, artifactSource,
+        jobResourceFactory);
   }
 
   @Test
   public void testStartCreatesResources() throws Exception {
     manager.start();
-    verify(jobResourceFactory, times(1))
-        .containerManager(artifactSource, jobInfo, controlServer, requestHandlerSupplier);
-    verify(containerManager, times(1)).getEnvironment(environment);
     assertTrue(manager.isStarted());
   }
 
