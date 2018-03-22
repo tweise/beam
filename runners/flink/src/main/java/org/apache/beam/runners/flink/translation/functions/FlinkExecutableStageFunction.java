@@ -20,7 +20,6 @@ package org.apache.beam.runners.flink.translation.functions;
 import static org.apache.flink.util.Preconditions.checkState;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import com.google.protobuf.Struct;
 import java.math.BigInteger;
 import java.util.Map;
@@ -68,7 +67,8 @@ public class FlinkExecutableStageFunction<InputT> extends
   private transient SdkHarnessClient client;
   private transient ExecutableProcessBundleDescriptor processBundleDescriptor;
 
-  public FlinkExecutableStageFunction(RunnerApi.ExecutableStagePayload payload,
+  public FlinkExecutableStageFunction(
+      RunnerApi.ExecutableStagePayload payload,
       RunnerApi.Components components,
       RunnerApi.Environment environment,
       Map<String, Integer> outputMap) {
@@ -123,6 +123,7 @@ public class FlinkExecutableStageFunction<InputT> extends
     final Object collectorLock = new Object();
     for (Map.Entry<BeamFnApi.Target, Coder<WindowedValue<?>>> entry : outputCoders.entrySet()) {
       BeamFnApi.Target target = entry.getKey();
+      int unionTag = outputMap.get(target.getName());
       Coder<WindowedValue<?>> coder = entry.getValue();
       SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>> receiver =
           new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>>() {
@@ -141,13 +142,6 @@ public class FlinkExecutableStageFunction<InputT> extends
                   // be serial? If not, these calls may need to be synchronized.
                   // TODO: If this needs to be synchronized, consider requiring immutable maps.
                   synchronized (collectorLock) {
-                    // TODO: Get the correct output union tag from the corresponding output tag.
-                    // Plumb through output tags from process bundle descriptor.
-                    // NOTE: The output map is guaranteed to be non-empty at this point, so we can
-                    // always grab index 0.
-                    // TODO: Plumb through TupleTag <-> Target mappings to get correct union tag
-                    // here. For now, assume only one union tag.
-                    int unionTag = Iterables.getOnlyElement(outputMap.values());
                     collector.collect(new RawUnionValue(unionTag, input));
                   }
                 }
