@@ -17,6 +17,8 @@
  */
 package org.apache.beam.runners.flink;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Iterables;
@@ -25,11 +27,15 @@ import com.google.common.collect.Maps;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
@@ -91,19 +97,24 @@ public class FlinkBatchPortablePipelineTranslator
     ExecutionEnvironment getExecutionEnvironment();
     <T> void addDataSet(String pCollectionId, DataSet<T> dataSet);
     <T> DataSet<T> getDataSetOrThrow(String pCollectionId);
+    Collection<DataSet<?>> getDanglingDataSets();
   }
 
   private static class BatchTranslationContextImpl
       extends TranslationContextImpl
       implements BatchTranslationContext {
+
     private final ExecutionEnvironment executionEnvironment;
     private final Map<String, DataSet<?>> dataSets;
+    private final Set<String> danglingDataSets;
+
     private BatchTranslationContextImpl(
         PipelineOptions pipelineOptions,
         ExecutionEnvironment executionEnvironment) {
       super(pipelineOptions);
       this.executionEnvironment = executionEnvironment;
       dataSets = new HashMap<>();
+      danglingDataSets = new HashSet<>();
     }
 
     @Override
@@ -113,7 +124,9 @@ public class FlinkBatchPortablePipelineTranslator
 
     @Override
     public <T> void addDataSet(String pCollectionId, DataSet<T> dataSet) {
+      checkArgument(!dataSets.containsKey(pCollectionId));
       dataSets.put(pCollectionId, dataSet);
+      danglingDataSets.add(pCollectionId);
     }
 
     @Override
@@ -123,7 +136,14 @@ public class FlinkBatchPortablePipelineTranslator
         throw new IllegalArgumentException(
                 String.format("Unknown dataset for id %s.", pCollectionId));
       }
+      // Assume that the DataSet is consumed if requested.
+      danglingDataSets.remove(pCollectionId);
       return dataSet;
+    }
+
+    @Override
+    public Collection<DataSet<?>> getDanglingDataSets() {
+      return danglingDataSets.stream().map(id -> dataSets.get(id)).collect(Collectors.toList());
     }
 
   }
@@ -155,6 +175,11 @@ public class FlinkBatchPortablePipelineTranslator
           transform.getTransform().getSpec().getUrn(), this::urnNotFound)
           .translate(transform.getId(), pipeline, context);
     }
+
+    for (DataSet<?> dataSet : context.getDanglingDataSets()) {
+      dataSet.output(new DiscardingOutputFormat<>());
+    }
+
   }
 
   private <InputT> void translateExecutableStage(
