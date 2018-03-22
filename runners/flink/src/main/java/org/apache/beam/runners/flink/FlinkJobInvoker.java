@@ -39,6 +39,11 @@ public class FlinkJobInvoker implements JobInvoker {
     FlinkPipelineOptions options = PipelineOptionsTranslation.fromProto(preparation.options())
             .as(FlinkPipelineOptions.class);
 
+    // Set Flink Master to [auto] if no option was specified.
+    if (options.getFlinkMaster() == null) {
+      options.setFlinkMaster("[auto]");
+    }
+
     ArtifactSource artifactSource = preparation.stagingService().getService().createAccessor();
     return FlinkJobInvocation.create(
         invocationId,
