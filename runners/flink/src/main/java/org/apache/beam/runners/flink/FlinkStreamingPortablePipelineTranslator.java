@@ -104,7 +104,8 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
 
   @Override
   public void translate(StreamingTranslationContext context, RunnerApi.Pipeline pipeline) {
-    QueryablePipeline p = QueryablePipeline.forPrimitivesIn(pipeline.getComponents());
+    QueryablePipeline p = QueryablePipeline.forTransforms(
+        pipeline.getRootTransformIdsList(), pipeline.getComponents());
     for (PipelineNode.PTransformNode transform : p.getTopologicallyOrderedTransforms()) {
       urnToTransformTranslator.getOrDefault(
               transform.getTransform().getSpec().getUrn(), this::urnNotFound)

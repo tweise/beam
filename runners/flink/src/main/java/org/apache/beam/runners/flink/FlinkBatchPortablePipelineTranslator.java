@@ -148,7 +148,8 @@ public class FlinkBatchPortablePipelineTranslator
   @Override
   public void translate(
       BatchTranslationContext context, RunnerApi.Pipeline pipeline) {
-    QueryablePipeline p = QueryablePipeline.forPrimitivesIn(pipeline.getComponents());
+    QueryablePipeline p = QueryablePipeline.forTransforms(
+        pipeline.getRootTransformIdsList(), pipeline.getComponents());
     for (PipelineNode.PTransformNode transform : p.getTopologicallyOrderedTransforms()) {
       urnToTransformTranslator.getOrDefault(
           transform.getTransform().getSpec().getUrn(), this::urnNotFound)
@@ -218,6 +219,7 @@ public class FlinkBatchPortablePipelineTranslator
             typeInformation,
             function,
             transform.getUniqueName());
+
     for (Map.Entry<String, String> output : outputs.entrySet()) {
       pruneOutput(taggedDataset,
           context,
