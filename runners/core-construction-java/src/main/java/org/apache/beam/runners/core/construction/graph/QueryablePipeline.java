@@ -118,8 +118,7 @@ public class QueryablePipeline {
    * PCollections as output.
    */
   private static boolean isPrimitiveTransform(PTransform transform) {
-    return transform.getSubtransformsCount() == 0
-        && !transform.getInputsMap().values().containsAll(transform.getOutputsMap().values());
+    return transform.getSubtransformsCount() == 0;
   }
 
   private MutableNetwork<PipelineNode, PipelineEdge> buildNetwork(
