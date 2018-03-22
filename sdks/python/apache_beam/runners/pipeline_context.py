@@ -20,6 +20,7 @@
 For internal use only; no backwards-compatibility guarantees.
 """
 
+import os
 
 from apache_beam import coders
 from apache_beam import pipeline
@@ -106,7 +107,12 @@ class PipelineContext(object):
     return PipelineContext(proto)
 
   def to_runner_api(self):
+    # TODO: Use pipeline options docker container image flag instead
+    # of hard coding this here.
+    environment_proto = beam_runner_api_pb2.Environment(
+        url=os.environ['USER'] + '-docker-apache.bintray.io/beam/python:latest')
     context_proto = beam_runner_api_pb2.Components()
+    context_proto.environments['python'].CopyFrom(environment_proto)
     for name in self._COMPONENT_TYPES:
       getattr(self, name).populate_map(getattr(context_proto, name))
     return context_proto

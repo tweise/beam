@@ -865,6 +865,7 @@ class ParDo(PTransformWithSideInputs):
         common_urns.PARDO_TRANSFORM,
         beam_runner_api_pb2.ParDoPayload(
             do_fn=beam_runner_api_pb2.SdkFunctionSpec(
+                environment_id='python',
                 spec=beam_runner_api_pb2.FunctionSpec(
                     urn=python_urns.PICKLED_DOFN_INFO,
                     payload=picked_pardo_fn_data)),
