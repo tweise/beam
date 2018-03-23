@@ -56,8 +56,9 @@ public abstract class FusedPipeline {
    * <p>The {@link Components} of the returned pipeline will contain all of the {@link PTransform
    * PTransforms} present in the original Pipeline that this {@link FusedPipeline} was created from,
    * plus all of the {@link ExecutableStage ExecutableStages} contained within this {@link
-   * FusedPipeline}. The Root Transform IDs will contain all of the runner executed transforms and
-   * all of the ExecutableStages contained within the Pipeline.
+   * FusedPipeline}. The {@link Pipeline#getRootTransformIdsList()} will contain all of the runner
+   * executed transforms and all of the {@link ExecutableStage execuable stages} contained within
+   * the Pipeline.
    */
   public RunnerApi.Pipeline toPipeline() {
     Map<String, PTransform> executableStageTransforms = getEnvironmentExecutedTransforms();
@@ -87,8 +88,7 @@ public abstract class FusedPipeline {
   }
 
   /**
-   * Return a {@link Components} like the {@code base} components, but with the set of transforms to
-   * be executed by an SDK harness.
+   * Return a map of IDs to {@link PTransform} which are executed by an SDK Harness.
    *
    * <p>The transforms that are present in the returned map are the {@link RunnerApi.PTransform}
    * versions of the {@link ExecutableStage ExecutableStages} returned in {@link #getFusedStages()}.
