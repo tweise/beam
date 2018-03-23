@@ -17,14 +17,17 @@
  */
 package org.apache.beam.runners.flink.translation.functions;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkState;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.Struct;
 import java.math.BigInteger;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
+import org.apache.beam.collect.Iterables;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.Endpoints;
@@ -43,6 +46,7 @@ import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
+import org.apache.beam.sdk.fn.data.RemoteGrpcPortWrite;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.join.RawUnionValue;
 import org.apache.beam.sdk.util.MoreFutures;
@@ -123,7 +127,16 @@ public class FlinkExecutableStageFunction<InputT> extends
     final Object collectorLock = new Object();
     for (Map.Entry<BeamFnApi.Target, Coder<WindowedValue<?>>> entry : outputCoders.entrySet()) {
       BeamFnApi.Target target = entry.getKey();
-      int unionTag = outputMap.get(target.getName());
+      String writeNodeId = target.getPrimitiveTransformReference();
+      RunnerApi.PTransform writeNode = processBundleDescriptor.getProcessBundleDescriptor()
+          .getTransformsOrDefault(writeNodeId, null);
+      checkArgument(writeNode != null,
+          "Could not find write node for id %s", writeNodeId);
+      String collectionId = Iterables.getOnlyElement(writeNode.getInputsMap().values());
+      Integer boxedUnionTag = outputMap.get(collectionId);
+      checkArgument(boxedUnionTag != null,
+          "No union tag found for PCollection %d", collectionId);
+      int unionTag = boxedUnionTag;
       Coder<WindowedValue<?>> coder = entry.getValue();
       SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>> receiver =
           new SdkHarnessClient.RemoteOutputReceiver<WindowedValue<?>>() {

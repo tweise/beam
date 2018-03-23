@@ -194,16 +194,15 @@ public class FlinkBatchPortablePipelineTranslator
     RunnerApi.Components components = pipeline.getComponents();
     RunnerApi.PTransform transform = components.getTransformsOrThrow(id);
     Map<String, String> outputs = transform.getOutputsMap();
-    // Mapping from local outputs to coder tag id.
-    BiMap<String, Integer> outputMap = createOutputMap(outputs.keySet());
+    // Mapping from PCollection id to coder tag id.
+    BiMap<String, Integer> outputMap = createOutputMap(outputs.values());
     // Collect all output Coders and create a UnionCoder for our tagged outputs.
     List<Coder<?>> unionCoders = Lists.newArrayList();
     // Enforce tuple tag sorting by union tag index.
     RehydratedComponents rehydratedComponents =
         RehydratedComponents.forComponents(components);
     Map<String, Coder<WindowedValue<?>>> outputCoders = Maps.newHashMap();
-    for (String localOutputName : new TreeMap<>(outputMap.inverse()).values()) {
-      String collectionId = outputs.get(localOutputName);
+    for (String collectionId : new TreeMap<>(outputMap.inverse()).values()) {
       RunnerApi.PCollection coll = components.getPcollectionsOrThrow(collectionId);
       RunnerApi.Coder coderProto = components.getCodersOrThrow(coll.getCoderId());
       Coder<WindowedValue<?>> windowCoder;
@@ -219,7 +218,7 @@ public class FlinkBatchPortablePipelineTranslator
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
-      outputCoders.put(localOutputName, windowCoder);
+      outputCoders.put(collectionId, windowCoder);
       unionCoders.add(windowCoder);
     }
     UnionCoder unionCoder = UnionCoder.of(unionCoders);
@@ -245,13 +244,13 @@ public class FlinkBatchPortablePipelineTranslator
             function,
             transform.getUniqueName());
 
-    for (Map.Entry<String, String> output : outputs.entrySet()) {
+    for (String collectionId : outputs.values()) {
       pruneOutput(taggedDataset,
           context,
-          outputMap.get(output.getKey()),
-          (Coder) outputCoders.get(output.getKey()),
+          outputMap.get(collectionId),
+          (Coder) outputCoders.get(collectionId),
           transform.getUniqueName(),
-          output.getValue());
+          collectionId);
     }
     if (outputs.isEmpty()) {
       // TODO: Is this still necessary?
@@ -487,7 +486,7 @@ public class FlinkBatchPortablePipelineTranslator
     context.addDataSet(collectionId, pruningOperator);
   }
 
-  // Creates a mapping from local names to output tag integers.
+  // Creates a mapping from PCollection id to output tag integer.
   private static BiMap<String, Integer> createOutputMap(Iterable<String> localOutputs) {
     ImmutableBiMap.Builder<String, Integer> builder = ImmutableBiMap.builder();
     int outputIndex = 0;
