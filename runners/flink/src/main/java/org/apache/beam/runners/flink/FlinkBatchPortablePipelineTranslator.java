@@ -162,7 +162,10 @@ public class FlinkBatchPortablePipelineTranslator
         this::translateGroupByKey);
     urnToTransformTranslator.put(PTransformTranslation.IMPULSE_TRANSFORM_URN,
         this::translateImpulse);
-    urnToTransformTranslator.put(ExecutableStage.URN, this::translateExecutableStage);
+    urnToTransformTranslator.put(ExecutableStage.URN,
+        this::translateExecutableStage);
+    urnToTransformTranslator.put(PTransformTranslation.RESHUFFLE_URN,
+        this::translateReshuffle);
   }
 
   @Override
@@ -180,6 +183,18 @@ public class FlinkBatchPortablePipelineTranslator
       dataSet.output(new DiscardingOutputFormat<>());
     }
 
+  }
+
+  private <K, V> void translateReshuffle(
+      String id,
+      RunnerApi.Pipeline pipeline,
+      BatchTranslationContext context) {
+    RunnerApi.PTransform transform = pipeline.getComponents().getTransformsOrThrow(id);
+    DataSet<WindowedValue<KV<K, V>>> inputDataSet =
+        context.getDataSetOrThrow(
+            Iterables.getOnlyElement(transform.getInputsMap().values()));
+    context.addDataSet(Iterables.getOnlyElement(transform.getOutputsMap().values()),
+        inputDataSet.rebalance());
   }
 
   private <InputT> void translateExecutableStage(

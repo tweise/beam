@@ -31,6 +31,7 @@ import org.apache.beam.sdk.coders.VoidCoder;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.values.KV;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
@@ -98,7 +99,10 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
             this::translateGroupByKey);
     urnToTransformTranslator.put(PTransformTranslation.IMPULSE_TRANSFORM_URN,
             this::translateImpulse);
-    urnToTransformTranslator.put(ExecutableStage.URN, this::translateExecutableStage);
+    urnToTransformTranslator.put(ExecutableStage.URN,
+        this::translateExecutableStage);
+    urnToTransformTranslator.put(PTransformTranslation.RESHUFFLE_URN,
+        this::translateReshuffle);
   }
 
 
@@ -121,6 +125,18 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
             String.format("Unknown type of URN %s for PTrasnform with id %s.",
                     pipeline.getComponents().getTransformsOrThrow(id).getSpec().getUrn(),
                     id));
+  }
+
+  private <K, V> void translateReshuffle(
+      String id,
+      RunnerApi.Pipeline pipeline,
+      StreamingTranslationContext context) {
+    RunnerApi.PTransform transform = pipeline.getComponents().getTransformsOrThrow(id);
+    DataStream<WindowedValue<KV<K, V>>> inputDataSet =
+        context.getDataStreamOrThrow(
+            Iterables.getOnlyElement(transform.getInputsMap().values()));
+    context.addDataStream(Iterables.getOnlyElement(transform.getOutputsMap().values()),
+        inputDataSet.rebalance());
   }
 
   public <T>  void translateFlatten(
