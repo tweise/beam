@@ -267,6 +267,12 @@ public class QueryablePipeline {
     return Environments.getEnvironment(parDo.getId(), components);
   }
 
+  public Set<PTransformNode> getConsumers(PCollectionNode inputPCollection) {
+    return pipelineNetwork.successors(inputPCollection).stream().map(PTransformNode.class::cast)
+        .collect(
+            Collectors.toSet());
+  }
+
   private interface PipelineEdge {
     boolean isPerElement();
   }

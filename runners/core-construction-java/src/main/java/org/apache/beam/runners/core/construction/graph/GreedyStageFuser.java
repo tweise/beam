@@ -162,7 +162,7 @@ public class GreedyStageFuser {
       PCollectionNode candidate,
       Environment environment,
       Set<PCollectionNode> fusedPCollections) {
-    for (PTransformNode node : pipeline.getPerElementConsumers(candidate)) {
+    for (PTransformNode node : pipeline.getConsumers(candidate)) {
       if (!(GreedyPCollectionFusers.canFuse(node, environment, fusedPCollections, pipeline))) {
         // Some of the consumers can't be fused into this subgraph, so the PCollection has to be
         // materialized.
