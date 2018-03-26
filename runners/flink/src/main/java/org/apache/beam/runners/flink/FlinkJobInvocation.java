@@ -78,22 +78,40 @@ public class FlinkJobInvocation implements JobInvocation {
     LOG.info("Translating pipeline to Flink program.");
     // Fused pipeline proto.
     RunnerApi.Pipeline fusedPipeline = GreedyPipelineFuser.fuse(pipeline).toPipeline();
+    final JobExecutionResult result;
 
-    FlinkBatchPortablePipelineTranslator translator = new FlinkBatchPortablePipelineTranslator();
-    FlinkBatchPortablePipelineTranslator.BatchTranslationContext context =
-        FlinkBatchPortablePipelineTranslator.createBatchContext(pipelineOptions);
-    translator.translate(context, fusedPipeline);
-
-    LOG.info("Registering pipeline artifacts in Flink program.");
-    try {
-      loadStagedArtifacts(artifactSource, context.getExecutionEnvironment()::registerCachedFile);
-    } catch (Exception e) {
-      LOG.error("Artifact registration failed", e);
-      throw new RuntimeException("Artifact registration failed", e);
+    // TODO: discover unbounded sources for streaming translation
+    if (true) {
+      // batch translation
+      FlinkBatchPortablePipelineTranslator translator = new FlinkBatchPortablePipelineTranslator();
+      FlinkBatchPortablePipelineTranslator.BatchTranslationContext context =
+              FlinkBatchPortablePipelineTranslator.createBatchContext(pipelineOptions);
+      translator.translate(context, fusedPipeline);
+      LOG.info("Registering pipeline artifacts in Flink program.");
+      try {
+        loadStagedArtifacts(artifactSource, context.getExecutionEnvironment()::registerCachedFile);
+      } catch (Exception e) {
+        LOG.error("Artifact registration failed", e);
+        throw new RuntimeException("Artifact registration failed", e);
+      }
+      result = context.getExecutionEnvironment().execute(pipelineOptions.getJobName());
+    } else {
+      // streaming translation
+      FlinkStreamingPortablePipelineTranslator translator =
+              new FlinkStreamingPortablePipelineTranslator();
+      FlinkStreamingPortablePipelineTranslator.StreamingTranslationContext context =
+              FlinkStreamingPortablePipelineTranslator.createStreamingContext(pipelineOptions);
+      translator.translate(context, fusedPipeline);
+      LOG.info("Registering pipeline artifacts in Flink program.");
+      try {
+        loadStagedArtifacts(artifactSource, context.getExecutionEnvironment()::registerCachedFile);
+      } catch (Exception e) {
+        LOG.error("Artifact registration failed", e);
+        throw new RuntimeException("Artifact registration failed", e);
+      }
+      result = context.getExecutionEnvironment().execute(pipelineOptions.getJobName());
     }
 
-    JobExecutionResult result =
-        context.getExecutionEnvironment().execute(pipelineOptions.getJobName());
     return FlinkRunner.createPipelineResult(result);
   }
 

@@ -502,7 +502,7 @@ public class FlinkBatchPortablePipelineTranslator
   }
 
   // Creates a mapping from PCollection id to output tag integer.
-  private static BiMap<String, Integer> createOutputMap(Iterable<String> localOutputs) {
+  static BiMap<String, Integer> createOutputMap(Iterable<String> localOutputs) {
     ImmutableBiMap.Builder<String, Integer> builder = ImmutableBiMap.builder();
     int outputIndex = 0;
     for (String tag : localOutputs) {
