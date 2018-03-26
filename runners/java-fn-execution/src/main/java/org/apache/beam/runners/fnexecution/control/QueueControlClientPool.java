@@ -18,20 +18,27 @@
 package org.apache.beam.runners.fnexecution.control;
 
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.sdk.util.ThrowingSupplier;
 
-/** Control client pool backed by a synchronous queue. */
-public class SynchronousControlClientPool implements ControlClientPool {
+/** Control client pool backed by a blocking queue. */
+public class QueueControlClientPool implements ControlClientPool {
 
   private final BlockingQueue<InstructionRequestHandler> queue;
 
-  public static SynchronousControlClientPool create() {
-    return new SynchronousControlClientPool(new SynchronousQueue<>(true));
+  /** Creates a client pool backed by a {@link SynchronousQueue}. */
+  public static QueueControlClientPool createSynchronous() {
+    return new QueueControlClientPool(new SynchronousQueue<>(true));
   }
 
-  private SynchronousControlClientPool(BlockingQueue<InstructionRequestHandler> queue) {
+  /** Creates a client pool backed by an unbounded {@link LinkedBlockingQueue}. */
+  public static QueueControlClientPool createLinked() {
+    return new QueueControlClientPool(new LinkedBlockingQueue<>());
+  }
+
+  private QueueControlClientPool(BlockingQueue<InstructionRequestHandler> queue) {
     this.queue = queue;
   }
 

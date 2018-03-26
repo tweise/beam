@@ -19,7 +19,6 @@ package org.apache.beam.runners.fnexecution.environment;
 
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.fnexecution.control.InstructionRequestHandler;
-import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 
 /**
  * A {@link RemoteEnvironment} that talks to a Docker container. Accessors are thread-compatible.
