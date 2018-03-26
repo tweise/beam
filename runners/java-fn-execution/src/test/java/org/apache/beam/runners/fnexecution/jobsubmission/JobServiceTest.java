@@ -24,7 +24,7 @@ public class JobServiceTest {
   GrpcFnServer<JobService> server;
 
   @Before
-  void setUp() throws Exception {
+  public void setUp() throws Exception {
     MockitoAnnotations.initMocks(this);
     ArtifactStagingServiceProvider provider = ignored -> artifactStagingServer;
     service = JobService.create(provider, invoker);
@@ -32,12 +32,12 @@ public class JobServiceTest {
   }
 
   @After
-  void tearDown() throws Exception {
+  public void tearDown() throws Exception {
     server.close();
   }
 
   @Test
-  void testJobSuccessfullyProcessed() throws Exception {
+  public void testJobSuccessfullyProcessed() throws Exception {
     // TODO: prepare and start a job
 
   }

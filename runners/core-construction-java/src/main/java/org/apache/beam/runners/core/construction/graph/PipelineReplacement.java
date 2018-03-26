@@ -28,7 +28,8 @@ public class PipelineReplacement {
   public static RunnerApi.Pipeline replaceInPreorderTopologicalTraversal(
       RunnerApi.Pipeline pipeline,
       Map<String, TransformReplacer> transformOverrides) {
-    return null;
+    // TODO: Implement.
+    return pipeline;
   }
 
   /**

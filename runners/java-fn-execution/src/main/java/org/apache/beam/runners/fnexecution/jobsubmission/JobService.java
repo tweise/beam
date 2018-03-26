@@ -66,7 +66,6 @@ public class JobService extends JobServiceGrpc.JobServiceImplBase implements FnS
       GrpcFnServer<ArtifactStagingService> stagingService =
           artifactStagingServiceProvider.forJob(preparationId);
       Struct pipelineOptions = request.getPipelineOptions();
-      LOG.trace("PIPELINE OPTIONS {} {}", pipelineOptions.getClass(), pipelineOptions);
       if (pipelineOptions == null) {
         LOG.trace("PIPELINE OPTIONS IS NULL");
         throw new NullPointerException("Encountered null pipeline options.");
@@ -77,6 +76,7 @@ public class JobService extends JobServiceGrpc.JobServiceImplBase implements FnS
       } else {
         LOG.trace("PIPELINE OPTIONS IS NOT NULL");
       }
+      LOG.trace("PIPELINE OPTIONS {} {}", pipelineOptions.getClass(), pipelineOptions);
       JobPreparation preparation =
           JobPreparation
               .builder()

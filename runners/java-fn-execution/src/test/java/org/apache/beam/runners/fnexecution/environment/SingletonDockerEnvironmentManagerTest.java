@@ -19,8 +19,7 @@ package org.apache.beam.runners.fnexecution.environment;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertSame;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.verify;
@@ -82,7 +81,7 @@ public class SingletonDockerEnvironmentManagerTest {
     SingletonDockerEnvironmentManager manager = getManager();
 
     RemoteEnvironment handle = manager.getEnvironment(ENVIRONMENT);
-    assertSame(handle.getInstructionRequestHandler(), is(requestHandler));
+    assertThat(handle.getInstructionRequestHandler(), sameInstance(requestHandler));
     assertThat(handle.getEnvironment(), equalTo(ENVIRONMENT));
   }
 

@@ -23,6 +23,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
@@ -227,7 +228,7 @@ public class CoderTranslation {
 
     @Override
     public List<? extends Coder<?>> getCoderArguments() {
-      return null;
+      return ImmutableList.of();
     }
 
     @Override
