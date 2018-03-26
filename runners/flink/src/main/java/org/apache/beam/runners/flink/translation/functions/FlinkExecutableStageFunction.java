@@ -21,12 +21,12 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkState;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.protobuf.Struct;
 import java.math.BigInteger;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
-import org.apache.beam.collect.Iterables;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.Endpoints;

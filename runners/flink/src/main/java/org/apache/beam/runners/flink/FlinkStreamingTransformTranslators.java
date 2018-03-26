@@ -1136,7 +1136,7 @@ class FlinkStreamingTransformTranslators {
     }
   }
 
-  private static class ToKeyedWorkItem<K, InputT>
+  public static class ToKeyedWorkItem<K, InputT>
       extends RichFlatMapFunction<
       WindowedValue<KV<K, InputT>>,
       WindowedValue<SingletonKeyedWorkItem<K, InputT>>> {
