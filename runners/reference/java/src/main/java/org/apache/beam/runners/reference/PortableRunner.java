@@ -24,7 +24,9 @@ import io.grpc.ManagedChannel;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -91,8 +93,8 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
     this.options = options;
   }
 
-  private Set<String> replaceDirectoriesWithZipFiles(List<String> paths) throws IOException {
-    Set<String> results = new HashSet<>();
+  private List<String> replaceDirectoriesWithZipFiles(List<String> paths) throws IOException {
+    List<String> results = new ArrayList<>();
     for (String path : paths) {
       File file = new File(path);
       if (file.exists()) {
@@ -116,12 +118,20 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
 
     LOG.info("Initial files to stage: " + options.getFilesToStage());
 
-    // TODO: Remove duplicates else where.
-    Set<String> filesToStage;
+    // Use a hashset to deduplicate same file names.
+    // TODO: Migrate to using unique names for each resource if the resource names are duplicated
+    // but in different paths.
+    List<String> filesToStage = new ArrayList<>();
+    Set<String> filesToStageSet = new HashSet<>();
+    for (String file : options.getFilesToStage()) {
+      if (filesToStageSet.add(new File(file).getName())) {
+        filesToStage.add(file);
+      }
+    }
 
     // TODO: Migrate this logic else where.
     try {
-      filesToStage = replaceDirectoriesWithZipFiles(options.getFilesToStage());
+      filesToStage = replaceDirectoriesWithZipFiles(filesToStage);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
