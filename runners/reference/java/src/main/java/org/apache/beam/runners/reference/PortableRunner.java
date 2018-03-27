@@ -23,10 +23,9 @@ import io.grpc.ManagedChannel;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.channels.Channels;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.beam.model.jobmanagement.v1.JobApi.PrepareJobRequest;
 import org.apache.beam.model.jobmanagement.v1.JobApi.PrepareJobResponse;
@@ -89,18 +88,20 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
     this.options = options;
   }
 
-  private List<String> replaceDirectoriesWithZipFiles(List<String> paths) throws IOException {
-    List<String> results = new ArrayList<String>();
+  private Set<String> replaceDirectoriesWithZipFiles(List<String> paths) throws IOException {
+    Set<String> results = new HashSet<>();
     for (String path : paths) {
       File file = new File(path);
-      if (file.isDirectory()) {
-        File zipFile = File.createTempFile(file.getName(), ".zip");
-        try (FileOutputStream fos = new FileOutputStream(zipFile)) {
-          ZipFiles.zipDirectory(file, fos);
+      if (file.exists()) {
+        if (file.isDirectory()) {
+          File zipFile = File.createTempFile(file.getName(), ".zip");
+          try (FileOutputStream fos = new FileOutputStream(zipFile)) {
+            ZipFiles.zipDirectory(file, fos);
+          }
+          results.add(zipFile.getAbsolutePath());
+        } else {
+          results.add(path);
         }
-        results.add(zipFile.getAbsolutePath());
-      } else {
-        results.add(path);
       }
     }
     return results;
@@ -111,11 +112,11 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
     LOG.info("Initial files to stage: " + options.getFilesToStage());
 
     // TODO: Remove duplicates else where.
-    List<String> filesToStage = new ArrayList<>(new LinkedHashSet<>());
+    Set<String> filesToStage;
 
     // TODO: Migrate this logic else where.
     try {
-      filesToStage = replaceDirectoriesWithZipFiles(filesToStage);
+      filesToStage = replaceDirectoriesWithZipFiles(options.getFilesToStage());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -145,7 +146,7 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
 
     String stagingToken;
     try {
-      LOG.info("Actual files staged %s", filesToStage);
+      LOG.info("Actual files staged {}", filesToStage);
       stagingToken =
           stager.stage(filesToStage.stream().map(File::new).collect(Collectors.toList()));
     } catch (IOException e) {
