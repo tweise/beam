@@ -19,12 +19,14 @@ package org.apache.beam.runners.reference;
 
 import static org.apache.beam.runners.core.construction.PipelineResources.detectClassPathResourcesToStage;
 
+import com.google.common.collect.ImmutableList;
 import io.grpc.ManagedChannel;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.beam.model.jobmanagement.v1.JobApi.PrepareJobRequest;
@@ -36,15 +38,27 @@ import org.apache.beam.model.jobmanagement.v1.JobServiceGrpc.JobServiceBlockingS
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.runners.core.construction.ArtifactServiceStager;
+import org.apache.beam.runners.core.construction.JavaReadViaImpulse;
+import org.apache.beam.runners.core.construction.PTransformMatchers;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
+import org.apache.beam.runners.core.construction.ReplacementOutputs;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.PipelineRunner;
 import org.apache.beam.sdk.fn.channel.ManagedChannelFactory;
+import org.apache.beam.sdk.io.Read;
+import org.apache.beam.sdk.io.Read.Bounded;
 import org.apache.beam.sdk.options.ExperimentalOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
+import org.apache.beam.sdk.runners.AppliedPTransform;
+import org.apache.beam.sdk.runners.PTransformOverride;
+import org.apache.beam.sdk.runners.PTransformOverrideFactory;
 import org.apache.beam.sdk.util.ZipFiles;
+import org.apache.beam.sdk.values.PBegin;
+import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PValue;
+import org.apache.beam.sdk.values.TupleTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,6 +123,8 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
 
   @Override
   public PipelineResult run(Pipeline pipeline) {
+    replaceTransforms(pipeline, false);
+
     LOG.info("Initial files to stage: " + options.getFilesToStage());
 
     // TODO: Remove duplicates else where.
@@ -183,6 +199,36 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
       channelFactory = ManagedChannelFactory.createDefault();
     }
     return channelFactory;
+  }
+
+  protected void replaceTransforms(Pipeline pipeline, boolean streaming) {
+    pipeline.replaceAll(getOverrides(streaming));
+  }
+
+  private List<PTransformOverride> getOverrides(boolean streaming) {
+    ImmutableList.Builder<PTransformOverride> overridesBuilder = ImmutableList.builder();
+    overridesBuilder.add(
+        PTransformOverride.of(
+            PTransformMatchers.classEqualTo(Read.Bounded.class),
+            new FnApiBoundedReadOverrideFactory()));
+    return overridesBuilder.build();
+  }
+
+  private static class FnApiBoundedReadOverrideFactory<T>
+      implements PTransformOverrideFactory<PBegin, PCollection<T>, Bounded<T>> {
+    @Override
+    public PTransformReplacement<PBegin, PCollection<T>> getReplacementTransform(
+        AppliedPTransform<PBegin, PCollection<T>, Bounded<T>> transform) {
+      return PTransformReplacement.of(
+          transform.getPipeline().begin(),
+          JavaReadViaImpulse.bounded(transform.getTransform().getSource()));
+    }
+
+    @Override
+    public Map<PValue, ReplacementOutput> mapOutputs(
+        Map<TupleTag<?>, PValue> outputs, PCollection<T> newOutput) {
+      return ReplacementOutputs.singleton(outputs, newOutput);
+    }
   }
 
   @Override
