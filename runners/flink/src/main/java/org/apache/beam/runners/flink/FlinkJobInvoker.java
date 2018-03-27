@@ -44,6 +44,8 @@ public class FlinkJobInvoker implements JobInvoker {
       options.setFlinkMaster("[auto]");
     }
 
+    options.setRunner(null);
+
     ArtifactSource artifactSource = preparation.stagingService().getService().createAccessor();
     return FlinkJobInvocation.create(
         invocationId,
