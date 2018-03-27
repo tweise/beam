@@ -151,3 +151,9 @@ task preCommit() {
   }
 }
 
+task runWordCount(type: JavaExec) {
+  classpath = configurations.shadow + sourceSets.main.runtimeClasspath
+  println("CLASSPATH: ${configurations.shadow.asPath}")
+  main = "org.apache.beam.examples.WordCount"
+  args "--runner=org.apache.beam.runners.reference.PortableRunner"
+}
