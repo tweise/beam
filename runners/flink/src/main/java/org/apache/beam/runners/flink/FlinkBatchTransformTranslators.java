@@ -39,6 +39,7 @@ import org.apache.beam.runners.core.construction.CreatePCollectionViewTranslatio
 import org.apache.beam.runners.core.construction.ExecutableStageTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.ParDoTranslation;
+import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.ReadTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
@@ -729,8 +730,11 @@ class FlinkBatchTransformTranslators {
         throw new RuntimeException(e);
       }
       FlinkExecutableStageFunction<InputT> function =
-          new FlinkExecutableStageFunction<>(stagePayload, context.getComponents(),
+          new FlinkExecutableStageFunction<>(
+              stagePayload,
+              context.getComponents(),
               stagePayload.getEnvironment(),
+              PipelineOptionsTranslation.toProto(context.getPipelineOptions()),
               null);
       DataSet<WindowedValue<InputT>> inputDataSet =
           context.getInputDataSet(context.getInput(transform));

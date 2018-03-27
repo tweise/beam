@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
+import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.RehydratedComponents;
 import org.apache.beam.runners.core.construction.WindowingStrategyTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
@@ -247,8 +248,11 @@ public class FlinkBatchPortablePipelineTranslator
       throw new RuntimeException(e);
     }
     FlinkExecutableStageFunction<InputT> function =
-        new FlinkExecutableStageFunction<>(stagePayload, components,
+        new FlinkExecutableStageFunction<>(
+            stagePayload,
+            components,
             stagePayload.getEnvironment(),
+            PipelineOptionsTranslation.toProto(context.getPipelineOptions()),
             outputMap);
     Map<String, String> inputs = transform.getInputsMap();
     DataSet<WindowedValue<InputT>> inputDataSet =

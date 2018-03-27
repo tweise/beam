@@ -31,7 +31,6 @@ import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
-import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.execution.CachedArtifactSource;
 import org.apache.beam.runners.flink.execution.EnvironmentSession;
@@ -45,7 +44,6 @@ import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.join.RawUnionValue;
 import org.apache.beam.sdk.util.MoreFutures;
 import org.apache.beam.sdk.util.WindowedValue;
@@ -64,6 +62,7 @@ public class FlinkExecutableStageFunction<InputT> extends
   private final RunnerApi.Components components;
   private final RunnerApi.Environment environment;
   private final Map<String, Integer> outputMap;
+  private final Struct pipelineOptions;
 
   private transient EnvironmentSession session;
   private transient SdkHarnessClient client;
@@ -73,10 +72,12 @@ public class FlinkExecutableStageFunction<InputT> extends
       RunnerApi.ExecutableStagePayload payload,
       RunnerApi.Components components,
       RunnerApi.Environment environment,
+      Struct pipelineOptions,
       Map<String, Integer> outputMap) {
     this.payload = payload;
     this.components = components;
     this.environment = environment;
+    this.pipelineOptions = pipelineOptions;
     this.outputMap = outputMap;
   }
 
@@ -84,12 +85,11 @@ public class FlinkExecutableStageFunction<InputT> extends
   public void open(Configuration parameters) throws Exception {
     ExecutableStage stage = ExecutableStage.fromPayload(payload, components);
     SdkHarnessManager manager = SingletonSdkHarnessManager.getInstance();
-    Struct options = PipelineOptionsTranslation.toProto(PipelineOptionsFactory.create());
     ProvisionApi.ProvisionInfo provisionInfo = ProvisionApi.ProvisionInfo.newBuilder()
         // TODO: Set this from job metadata.
         .setJobId("job-id")
         .setWorkerId(getRuntimeContext().getTaskNameWithSubtasks())
-        .setPipelineOptions(options)
+        .setPipelineOptions(pipelineOptions)
         .build();
     ArtifactSource artifactSource =
         CachedArtifactSource.createDefault(getRuntimeContext().getDistributedCache());
