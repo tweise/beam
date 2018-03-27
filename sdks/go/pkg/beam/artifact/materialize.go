@@ -150,7 +150,7 @@ func retrieve(ctx context.Context, client pb.ArtifactRetrievalServiceClient, a *
 		return err
 	}
 
-	fd, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(a.Permissions))
+	fd, err := os.OpenFile(filename, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(0777))
 	if err != nil {
 		return err
 	}
