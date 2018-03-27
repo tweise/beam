@@ -18,7 +18,11 @@
 
 package org.apache.beam.runners.core.construction;
 
+import static com.google.common.base.Preconditions.checkState;
+
 import com.google.auto.value.AutoValue;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.io.BaseEncoding;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -43,6 +47,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactChunk;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactMetadata;
@@ -60,6 +66,13 @@ import org.apache.beam.sdk.util.ThrowingSupplier;
 public class ArtifactServiceStager {
   // 2 MB per file-request
   private static final int DEFAULT_BUFFER_SIZE = 2 * 1024 * 1024;
+
+  private static final Pattern PATH_ESCAPE_PATTERN = Pattern.compile("[_\\\\/.]");
+  private static final Map<String, String> PATH_ESCAPE_MAP = ImmutableMap.of(
+      "_", Matcher.quoteReplacement("__"),
+      "\\", Matcher.quoteReplacement("_."),
+      "/", Matcher.quoteReplacement("._"),
+      ".", Matcher.quoteReplacement(".."));
 
   public static ArtifactServiceStager overChannel(Channel channel) {
     return overChannel(channel, DEFAULT_BUFFER_SIZE);
@@ -135,7 +148,10 @@ public class ArtifactServiceStager {
       // TODO: Add Retries
       PutArtifactResponseObserver responseObserver = new PutArtifactResponseObserver();
       StreamObserver<PutArtifactRequest> requestObserver = stub.putArtifact(responseObserver);
-      ArtifactMetadata metadata = ArtifactMetadata.newBuilder().setName(file.getName()).build();
+      // HACK: Encode paths into a flat namespace. The SDK harness will attempt to load artifacts
+      // into a flat directory by name.
+      String artifactName = escapePath(file.getPath());
+      ArtifactMetadata metadata = ArtifactMetadata.newBuilder().setName(artifactName).build();
       requestObserver.onNext(PutArtifactRequest.newBuilder().setMetadata(metadata).build());
 
       MessageDigest md5Digest = MessageDigest.getInstance("MD5");
@@ -241,5 +257,17 @@ public class ArtifactServiceStager {
     abstract Set<ArtifactMetadata> getMetadata();
 
     abstract Map<File, Throwable> getFailures();
+  }
+
+  private static String escapePath(String path) {
+    Matcher m = PATH_ESCAPE_PATTERN.matcher(path);
+    StringBuffer result = new StringBuffer();
+    while (m.find()) {
+      String replacement = PATH_ESCAPE_MAP.get(m.group());
+      checkState(replacement != null);
+      m.appendReplacement(result, replacement);
+    }
+    m.appendTail(result);
+    return result.toString();
   }
 }
