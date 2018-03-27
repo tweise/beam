@@ -136,7 +136,6 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
       throw new RuntimeException(e);
     }
 
-
     PrepareJobRequest prepareJobRequest = PrepareJobRequest.newBuilder()
         .setJobName(options.getJobName())
         .setPipeline(PipelineTranslation.toProto(pipeline))
@@ -200,7 +199,7 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
     return channelFactory;
   }
 
-  protected void replaceTransforms(Pipeline pipeline, boolean streaming) {
+  private void replaceTransforms(Pipeline pipeline, boolean streaming) {
     pipeline.replaceAll(getOverrides(streaming));
   }
 
