@@ -22,7 +22,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.ImmutableSet;
 import java.util.ArrayDeque;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -79,14 +81,14 @@ public class GreedyStageFuser {
     ImmutableSet.Builder<PTransformNode> fusedTransforms = ImmutableSet.builder();
     fusedTransforms.addAll(initialNodes);
 
-    Set<PCollectionNode> sideInputs = new LinkedHashSet<>();
+    Map<String, PCollectionNode> sideInputs = new HashMap<>();
     Set<PCollectionNode> fusedCollections = new LinkedHashSet<>();
     Set<PCollectionNode> materializedPCollections = new LinkedHashSet<>();
 
     Queue<PCollectionNode> fusionCandidates = new ArrayDeque<>();
     for (PTransformNode initialConsumer : initialNodes) {
       fusionCandidates.addAll(pipeline.getOutputPCollections(initialConsumer));
-      sideInputs.addAll(pipeline.getSideInputs(initialConsumer));
+      sideInputs.putAll(pipeline.getSideInputs(initialConsumer));
     }
     while (!fusionCandidates.isEmpty()) {
       PCollectionNode candidate = fusionCandidates.poll();
@@ -114,7 +116,7 @@ public class GreedyStageFuser {
             // The outputs of every transform fused into this stage must be either materialized or
             // themselves fused away, so add them to the set of candidates.
             fusionCandidates.addAll(pipeline.getOutputPCollections(consumer));
-            sideInputs.addAll(pipeline.getSideInputs(consumer));
+            sideInputs.putAll(pipeline.getSideInputs(consumer));
           }
           break;
         default:

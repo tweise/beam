@@ -215,7 +215,7 @@ message ExecutableStagePayload {
   string input = 2;
 
   // Side Input PCollection ids.
-  repeated string side_inputs = 3;
+  map<string, string> side_inputs = 3;
 
   // PTransform ids contained within this executable stage.
   repeated string transforms = 4;
