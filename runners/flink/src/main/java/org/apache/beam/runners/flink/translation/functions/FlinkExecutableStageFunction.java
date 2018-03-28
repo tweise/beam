@@ -47,6 +47,7 @@ import org.apache.beam.sdk.transforms.join.RawUnionValue;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.flink.api.common.functions.RichMapPartitionFunction;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.runtime.operators.chaining.ExceptionInChainedStubException;
 import org.apache.flink.util.Collector;
 
 /** ExecutableStage operator. */
@@ -151,7 +152,13 @@ public class FlinkExecutableStageFunction<InputT> extends
                   // be serial? If not, these calls may need to be synchronized.
                   // TODO: If this needs to be synchronized, consider requiring immutable maps.
                   synchronized (collectorLock) {
-                    collector.collect(new RawUnionValue(unionTag, input));
+                    try {
+                      collector.collect(new RawUnionValue(unionTag, input));
+                    } catch (ExceptionInChainedStubException e) {
+                      // Flink wraps exceptions that happen in certain places, make sure
+                      // to bubble up the right exception
+                      throw e.getWrappedException();
+                    }
                   }
                 }
               };
