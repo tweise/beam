@@ -210,13 +210,18 @@ public class ProcessBundleDescriptors {
 
   private static Coder<WindowedValue<?>> instantiateWireCoder(
       RemoteGrpcPort port, Map<String, RunnerApi.Coder> components) throws IOException {
-    MessageWithComponents byteArrayCoder =
-        LengthPrefixUnknownCoders.forCoder(
-            port.getCoderId(), Components.newBuilder().putAllCoders(components).build(), true);
+//    MessageWithComponents byteArrayCoder =
+//        LengthPrefixUnknownCoders.forCoder(
+//            port.getCoderId(), Components.newBuilder().putAllCoders(components).build(), true);
+//    Coder<?> javaCoder =
+//        CoderTranslation.fromProto(
+//            byteArrayCoder.getCoder(),
+//            RehydratedComponents.forComponents(byteArrayCoder.getComponents()));
     Coder<?> javaCoder =
         CoderTranslation.fromProto(
-            byteArrayCoder.getCoder(),
-            RehydratedComponents.forComponents(byteArrayCoder.getComponents()));
+            components.get(port.getCoderId()),
+            RehydratedComponents.forComponents(
+                Components.newBuilder().putAllCoders(components).build()));
     checkArgument(
         javaCoder instanceof WindowedValue.FullWindowedValueCoder,
         "Unexpected Deserialized %s type, expected %s, got %s",
