@@ -194,7 +194,7 @@ public class WordCount {
         }
       }));
 
-    p.run();
+    p.run().waitUntilFinish();
   }
 
   public static void main(String[] args) {

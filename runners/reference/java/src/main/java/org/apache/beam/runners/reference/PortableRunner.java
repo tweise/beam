@@ -17,16 +17,17 @@
  */
 package org.apache.beam.runners.reference;
 
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.beam.runners.core.construction.PipelineResources.detectClassPathResourcesToStage;
 
 import com.google.common.collect.ImmutableList;
+import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -143,10 +144,12 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
         .build();
 
     ManagedChannelFactory channelFactory = getChannelFactory(options);
-    ManagedChannel channel = channelFactory
+    ManagedChannel jobServiceChannel = channelFactory
         .forDescriptor(getApiServiceDescriptor("localhost:3000"));
 
-    JobServiceBlockingStub jobService = JobServiceGrpc.newBlockingStub(channel);
+    JobServiceBlockingStub jobService = JobServiceGrpc.newBlockingStub(jobServiceChannel);
+    CloseableResource<JobServiceBlockingStub> wrappedJobService = CloseableResource.of(jobService,
+        (unused) -> jobServiceChannel.shutdown());
 
     PrepareJobResponse prepareJobResponse = jobService.prepare(prepareJobRequest);
 
@@ -155,17 +158,20 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
     ApiServiceDescriptor artifactStagingEndpoint =
         prepareJobResponse.getArtifactStagingEndpoint();
 
-    ArtifactServiceStager stager =
-        ArtifactServiceStager.overChannel(channelFactory.forDescriptor(artifactStagingEndpoint));
-
-    String stagingToken;
-    try {
+    String stagingToken = null;
+    try (CloseableResource<ManagedChannel> artifactChannel =
+        CloseableResource.of(channelFactory.forDescriptor(artifactStagingEndpoint),
+            ManagedChannel::shutdown)) {
+      ArtifactServiceStager stager =
+          ArtifactServiceStager.overChannel(artifactChannel.get());
       LOG.info("Actual files staged {}", filesToStage);
       stagingToken =
           stager.stage(filesToStage.stream().map(File::new).collect(Collectors.toList()));
-    } catch (IOException e) {
-      throw new RuntimeException("Error staging files.", e);
-    } catch (InterruptedException e) {
+    } catch (CloseableResource.CloseException e) {
+      LOG.warn("Error closing artifact staging channel", e);
+      // CloseExceptions should only be thrown while closing the channel.
+      checkState(stagingToken != null);
+    } catch (Exception e) {
       throw new RuntimeException("Error staging files.", e);
     }
 
@@ -176,9 +182,10 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
 
     RunJobResponse runJobResponse = jobService.run(runJobRequest);
 
-    System.out.println("RUN JOB RESPONSE: " + runJobResponse);
+    LOG.info("Run job response: {}", runJobResponse);
+    ByteString jobId = runJobResponse.getJobIdBytes();
 
-    return new JobServicePipelineResult();
+    return new JobServicePipelineResult(jobId, wrappedJobService);
   }
 
   private static Endpoints.ApiServiceDescriptor getApiServiceDescriptor(String descriptor) {
