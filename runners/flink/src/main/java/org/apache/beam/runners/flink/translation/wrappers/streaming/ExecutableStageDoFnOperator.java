@@ -107,6 +107,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     String id = new BigInteger(32, ThreadLocalRandom.current()).toString(36);
     processBundleDescriptor = ProcessBundleDescriptors.fromExecutableStage(
         id, stage, components, dataEndpoint, stateEndpoint);
+    // TODO: we need to wire in a StateRequestHandler when creating the bundle processor below
     logger.info(String.format("Process bundle descriptor: %s", processBundleDescriptor));
   }
 
