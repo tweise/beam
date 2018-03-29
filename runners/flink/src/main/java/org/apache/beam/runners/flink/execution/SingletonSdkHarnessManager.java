@@ -81,6 +81,8 @@ public class SingletonSdkHarnessManager implements  SdkHarnessManager {
       RunnerApi.Environment environment,
       ArtifactSource artifactSource) throws Exception {
 
+    // TODO: Don't spin up a docker container for every stage but
+    // reuse one container per TaskManager/JVM.
     JobResourceManager jobResourceManager =
         jobResourceManagerFactory.create(
             jobInfo,

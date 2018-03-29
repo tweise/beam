@@ -78,6 +78,9 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
    */
   @Override
   public RemoteEnvironment getEnvironment(Environment environment) throws Exception {
+    // TODO: don't create a new environment every time but reuse one environment. This was
+    // changed at some point because the harness or something couldn't correctly deal with
+    // multiple concurrent things going on.
     return createDockerEnv(environment);
   }
 
