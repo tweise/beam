@@ -31,14 +31,14 @@ import org.apache.beam.sdk.transforms.Reshuffle;
 /**
  * Utility methods for translating a {@link Reshuffle} to and from {@link RunnerApi} representations.
  */
-public class ReshuffleTranslator
+public class ReshuffleTranslation
     extends TransformPayloadTranslator.WithDefaultRehydration<Reshuffle<?, ?>> {
 
   public static TransformPayloadTranslator create() {
-    return new ReshuffleTranslator();
+    return new ReshuffleTranslation();
   }
 
-  private ReshuffleTranslator() {}
+  private ReshuffleTranslation() {}
 
   @Override
   public String getUrn(Reshuffle<?, ?> transform) {
@@ -51,13 +51,13 @@ public class ReshuffleTranslator
     return FunctionSpec.newBuilder().setUrn(getUrn(transform.getTransform())).build();
   }
 
-  /** Registers {@link ReshuffleTranslator}. */
+  /** Registers {@link ReshuffleTranslation}. */
   @AutoService(TransformPayloadTranslatorRegistrar.class)
   public static class Registrar implements TransformPayloadTranslatorRegistrar {
     @Override
     public Map<? extends Class<? extends PTransform>, ? extends TransformPayloadTranslator>
         getTransformPayloadTranslators() {
-      return Collections.singletonMap(Reshuffle.class, new ReshuffleTranslator());
+      return Collections.singletonMap(Reshuffle.class, new ReshuffleTranslation());
     }
 
     @Override

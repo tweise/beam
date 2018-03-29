@@ -61,6 +61,8 @@ public class Reshuffle<K, V> extends PTransform<PCollection<KV<K, V>>, PCollecti
 
   @Override
   public PCollection<KV<K, V>> expand(PCollection<KV<K, V>> input) {
+    // TODO: properly expand this again once Flink portable translation correctly translates
+    // a reshuffle as a native reshuffle
     return PCollection.createPrimitiveOutputInternal(
         input.getPipeline(),
         input.getWindowingStrategy(),
