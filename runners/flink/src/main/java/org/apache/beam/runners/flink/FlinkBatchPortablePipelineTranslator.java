@@ -270,14 +270,21 @@ public class FlinkBatchPortablePipelineTranslator
             stagePayload.getEnvironment(),
             PipelineOptionsTranslation.toProto(context.getPipelineOptions()),
             outputMap);
-    Map<String, String> inputs = transform.getInputsMap();
-    DataSet<WindowedValue<InputT>> inputDataSet =
-        context.getDataSetOrThrow(Iterables.getOnlyElement(inputs.values()));
-    DataSet<RawUnionValue> taggedDataset =
+
+    DataSet<WindowedValue<InputT>> inputDataSet = context.getDataSetOrThrow(stagePayload.getInput());
+
+    MapPartitionOperator<WindowedValue<InputT>, RawUnionValue> taggedDataset =
         new MapPartitionOperator<>(inputDataSet,
             typeInformation,
             function,
             transform.getUniqueName());
+
+    for (Map.Entry<String, String> sideInput : stagePayload.getSideInputsMap().entrySet()) {
+      // register under the global PCollection name, only ExecutableStageFunction needs to
+      // know the mapping from local name to global name
+      taggedDataset.withBroadcastSet(
+          context.getDataSetOrThrow(sideInput.getValue()), sideInput.getValue());
+    }
 
     for (String collectionId : outputs.values()) {
       pruneOutput(taggedDataset,
