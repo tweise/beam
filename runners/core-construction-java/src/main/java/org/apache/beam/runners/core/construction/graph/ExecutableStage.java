@@ -158,7 +158,7 @@ public interface ExecutableStage {
     PCollectionNode input =
         PipelineNode.pCollection(
             payload.getInput(), components.getPcollectionsOrThrow(payload.getInput()));
-    Builder<String, PCollectionNode> sideInputsBuilder = ImmutableMap.builder();
+    ImmutableMap.Builder<String, PCollectionNode> sideInputsBuilder = ImmutableMap.builder();
     for (Map.Entry<String, String> sideInput : payload.getSideInputsMap().entrySet()) {
       PCollection pCollection = components.getPcollectionsOrThrow(sideInput.getValue());
       sideInputsBuilder.put(

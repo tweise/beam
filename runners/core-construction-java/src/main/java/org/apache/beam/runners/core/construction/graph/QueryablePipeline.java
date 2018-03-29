@@ -246,7 +246,7 @@ public class QueryablePipeline {
         .map(
             localName -> {
               String pcollectionId = transform.getTransform().getInputsOrThrow(localName);
-              return KV.of(localName, PipelineNode.pCollection(
+              return KV.of(localName + transform.getId(), PipelineNode.pCollection(
                   pcollectionId, components.getPcollectionsOrThrow(pcollectionId)));
             })
         .collect(Collectors.toMap(KV::getKey, KV::getValue));
