@@ -30,6 +30,7 @@ import java.util.logging.Logger;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.Endpoints;
+import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.execution.CachedArtifactSource;
@@ -94,11 +95,12 @@ public class FlinkExecutableStageFunction<InputT> extends
         CachedArtifactSource.createDefault(getRuntimeContext().getDistributedCache());
     session = manager.getSession(provisionInfo, environment, artifactSource);
     Endpoints.ApiServiceDescriptor dataEndpoint = session.getDataServiceDescriptor();
+    ApiServiceDescriptor stateEndpoint = session.getStateServiceDescriptor();
     client = session.getClient();
     logger.info(String.format("Data endpoint: %s", dataEndpoint.getUrl()));
     String id = new BigInteger(32, ThreadLocalRandom.current()).toString(36);
-    processBundleDescriptor =
-        ProcessBundleDescriptors.fromExecutableStage(id, stage, components, dataEndpoint);
+    processBundleDescriptor = ProcessBundleDescriptors.fromExecutableStage(
+        id, stage, components, dataEndpoint, stateEndpoint);
     logger.info(String.format("Process bundle descriptor: %s", processBundleDescriptor));
   }
 

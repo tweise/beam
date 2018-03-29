@@ -58,8 +58,11 @@ import org.apache.beam.sdk.util.WindowedValue.FullWindowedValueCoder;
 // TODO: Rename to ExecutableStages?
 public class ProcessBundleDescriptors {
   public static ExecutableProcessBundleDescriptor fromExecutableStage(
-      String id, ExecutableStage stage, Components components, ApiServiceDescriptor dataEndpoint)
-      throws IOException {
+      String id,
+      ExecutableStage stage,
+      Components components,
+      ApiServiceDescriptor dataEndpoint,
+      ApiServiceDescriptor stateEndpoint) throws IOException {
     // Create with all of the processing transforms, and all of the components.
     // TODO: Remove the unreachable subcomponents if the size of the descriptor matters.
     ProcessBundleDescriptor.Builder bundleDescriptorBuilder =
@@ -75,6 +78,8 @@ public class ProcessBundleDescriptors {
                     .stream()
                     .collect(
                         Collectors.toMap(PTransformNode::getId, PTransformNode::getTransform)));
+
+    bundleDescriptorBuilder.setStateApiServiceDescriptor(stateEndpoint);
 
     RemoteInputDestination<WindowedValue<?>> inputDestination =
         addStageInput(
