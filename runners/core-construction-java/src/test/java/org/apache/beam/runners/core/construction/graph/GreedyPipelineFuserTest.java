@@ -18,12 +18,21 @@
 
 package org.apache.beam.runners.core.construction.graph;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.model.pipeline.v1.RunnerApi.ExecutableStagePayload.SideInputId;
@@ -38,6 +47,10 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.StateSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.TimerSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.WindowIntoPayload;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
+import org.hamcrest.Matchers;
+import org.hamcrest.core.AnyOf;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -242,7 +255,7 @@ public class GreedyPipelineFuserTest {
 
     assertThat(
         fused.getRunnerExecutedTransforms(),
-        contains(
+        containsInAnyOrder(
             PipelineNode.pTransform("impulse", components.getTransformsOrThrow("impulse")),
             PipelineNode.pTransform("groupByKey", components.getTransformsOrThrow("groupByKey"))));
     assertThat(
@@ -342,8 +355,9 @@ public class GreedyPipelineFuserTest {
    * pyImpulse -> .out -> pyRead -> .out /                    -> pyParDo -> .out
    *
    * becomes
-   * (goImpulse.out) -> goRead -> goRead.out -> flatten -> (flatten.out)
-   * (pyImpulse.out) -> pyRead -> pyRead.out -> flatten -> (flatten.out)
+   * (goImpulse.out) -> goRead -> goRead.out -> flatten -> (flatten.out_synthetic0)
+   * (pyImpulse.out) -> pyRead -> pyRead.out -> flatten -> (flatten.out_synthetic1)
+   * flatten.out_synthetic0 & flatten.out_synthetic1 -> synthetic_flatten -> flatten.out
    * (flatten.out) -> goParDo
    * (flatten.out) -> pyParDo
    */
@@ -453,19 +467,39 @@ public class GreedyPipelineFuserTest {
     FusedPipeline fused =
         GreedyPipelineFuser.fuse(Pipeline.newBuilder().setComponents(components).build());
 
+    assertThat(fused.getRunnerExecutedTransforms(), hasSize(3));
     assertThat(
+        "The runner should include the impulses for both languages, plus an introduced flatten",
         fused.getRunnerExecutedTransforms(),
-        containsInAnyOrder(
+        hasItems(
             PipelineNode.pTransform("pyImpulse", components.getTransformsOrThrow("pyImpulse")),
             PipelineNode.pTransform("goImpulse", components.getTransformsOrThrow("goImpulse"))));
+
+    PTransformNode flattenNode = null;
+    for (PTransformNode runnerTransform : fused.getRunnerExecutedTransforms()) {
+      if (!(runnerTransform.getId().equals("pyImpulse")
+          || runnerTransform.getId().equals("goImpulse"))) {
+        flattenNode = runnerTransform;
+      }
+    }
+
+    assertThat(flattenNode, not(nullValue()));
+    assertThat(
+        flattenNode.getTransform().getSpec().getUrn(),
+        equalTo(PTransformTranslation.FLATTEN_TRANSFORM_URN));
+    assertThat(new HashSet<>(flattenNode.getTransform().getInputsMap().values()), hasSize(2));
+
+    Collection<String> introducedOutputs = flattenNode.getTransform().getInputsMap().values();
+    AnyOf<String> anyIntroducedPCollection =
+        anyOf(introducedOutputs.stream().map(Matchers::equalTo).collect(Collectors.toSet()));
     assertThat(
         fused.getFusedStages(),
         containsInAnyOrder(
             ExecutableStageMatcher.withInput("goImpulse.out")
-                .withOutputs("flatten.out")
+                .withOutputs(anyIntroducedPCollection)
                 .withTransforms("goRead", "flatten"),
             ExecutableStageMatcher.withInput("pyImpulse.out")
-                .withOutputs("flatten.out")
+                .withOutputs(anyIntroducedPCollection)
                 .withTransforms("pyRead", "flatten"),
             ExecutableStageMatcher.withInput("flatten.out")
                 .withNoOutputs()
@@ -473,6 +507,19 @@ public class GreedyPipelineFuserTest {
             ExecutableStageMatcher.withInput("flatten.out")
                 .withNoOutputs()
                 .withTransforms("pyParDo")));
+    Set<String> materializedStageOutputs =
+        fused
+            .getFusedStages()
+            .stream()
+            .flatMap(executableStage -> executableStage.getOutputPCollections().stream())
+            .map(PCollectionNode::getId)
+            .collect(Collectors.toSet());
+
+    assertThat(
+        "All materialized stage outputs should be flattened, and no more",
+        materializedStageOutputs,
+        containsInAnyOrder(
+            flattenNode.getTransform().getInputsMap().values().toArray(new String[0])));
   }
 
   /*
