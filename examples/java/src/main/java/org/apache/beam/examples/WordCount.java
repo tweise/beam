@@ -17,6 +17,7 @@
  */
 package org.apache.beam.examples;
 
+import java.util.Map;
 import org.apache.beam.examples.common.ExampleUtils;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.metrics.Counter;
@@ -34,8 +35,10 @@ import org.apache.beam.sdk.transforms.MapElements;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.SimpleFunction;
+import org.apache.beam.sdk.transforms.View;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TypeDescriptors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -181,18 +184,29 @@ public class WordCount {
   static void runWordCount(WordCountOptions options) {
     Pipeline p = Pipeline.create(options);
 
-    // Concepts #2 and #3: Our pipeline applies the composite CountWords transform, and passes the
-    // static FormatAsTextFn() to the ParDo transform.
+//    final PCollectionView<Iterable<String>> view1 =
+//        p
+//            .apply(Impulse.create())
+//            .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings())).via((in) -> KV.of("side-1", "side-1")))
+//            .apply(View.asIterable());
+
+    final PCollectionView<Map<String, String>> view1 =
+        p
+        .apply(Impulse.create())
+        .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings())).via((in) -> KV.of("side-1", "side-1")))
+        .apply(View.asMap());
+
     p
       .apply(Impulse.create())
-      .apply(MapElements.into(TypeDescriptors.strings()).via((in) -> "Hello"))
+      .apply(MapElements.into(TypeDescriptors.strings()).via((in) -> "main-1"))
       .apply(ParDo.of(new DoFn<String, Void>() {
 
         @ProcessElement
         public void process(ProcessContext c) {
-          LOG.info("GOT " + c.element());
+          Map<String, String> sideInput = c.sideInput(view1);
+          LOG.info("GOT " + c.element() + " side: " + sideInput.get("side-1"));
         }
-      }));
+      }).withSideInputs(view1));
 
     p.run().waitUntilFinish();
   }

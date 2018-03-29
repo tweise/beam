@@ -18,20 +18,34 @@
 package org.apache.beam.runners.flink.translation.functions;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.beam.runners.core.construction.UrnUtils.validateCommonUrn;
 import static org.apache.flink.util.Preconditions.checkState;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Struct;
 import java.math.BigInteger;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.StateKey.MultimapSideInput;
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.StateKey.TypeCase;
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.StateRequest;
+import org.apache.beam.model.fnexecution.v1.BeamFnApi.StateResponse.Builder;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
+import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
+import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
+import org.apache.beam.runners.core.construction.CoderTranslation;
+import org.apache.beam.runners.core.construction.RehydratedComponents;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.flink.execution.CachedArtifactSource;
 import org.apache.beam.runners.flink.execution.EnvironmentSession;
@@ -42,10 +56,14 @@ import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors;
 import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors.ExecutableProcessBundleDescriptor;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
+import org.apache.beam.runners.fnexecution.state.StateRequestHandler;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.transforms.join.RawUnionValue;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.util.WindowedValue.WindowedValueCoder;
+import org.apache.beam.sdk.values.KV;
 import org.apache.flink.api.common.functions.RichMapPartitionFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.chaining.ExceptionInChainedStubException;
@@ -116,8 +134,12 @@ public class FlinkExecutableStageFunction<InputT> extends
         (RemoteInputDestination<WindowedValue<InputT>>)
         (RemoteInputDestination<?>)
             processBundleDescriptor.getRemoteInputDestination();
+
     SdkHarnessClient.BundleProcessor<InputT> processor = client.getProcessor(
-        processBundleDescriptor.getProcessBundleDescriptor(), destination);
+        processBundleDescriptor.getProcessBundleDescriptor(),
+        destination,
+        session.getStateDelegator());
+
     processor.getRegistrationFuture().toCompletableFuture().get();
     Map<BeamFnApi.Target, Coder<WindowedValue<?>>> outputCoders =
         processBundleDescriptor.getOutputTargetCoders();
@@ -172,7 +194,70 @@ public class FlinkExecutableStageFunction<InputT> extends
         SdkHarnessClient.RemoteOutputReceiver<?>> receiverMap =
         receiverBuilder.build();
 
-    try (SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap)) {
+    StateRequestHandler stateRequestHandler = new StateRequestHandler() {
+      @Override
+      public CompletionStage<Builder> handle(StateRequest request) throws Exception {
+        if (request.getStateKey().getTypeCase() != TypeCase.MULTIMAP_SIDE_INPUT) {
+          throw new UnsupportedOperationException(
+              "This handler can only respond to MULTIMAP_SIDE_INPUT request.");
+        }
+        MultimapSideInput multimapSideInput = request.getStateKey().getMultimapSideInput();
+
+        String globalPCollectionName =
+            payload.getSideInputsOrThrow(multimapSideInput.getSideInputId());
+
+        List<Object> broadcastVariable = getRuntimeContext()
+            .getBroadcastVariable(globalPCollectionName);
+
+        PCollection pCollection = components.getPcollectionsOrThrow(globalPCollectionName);
+
+        String windowingStrategyId = pCollection.getWindowingStrategyId();
+        String windowCoderId =
+            components.getWindowingStrategiesOrThrow(windowingStrategyId).getWindowCoderId();
+
+        // TODO: This is the wrong place to hand-construct a coder, maybe
+        RunnerApi.Coder windowedValueCoder =
+            RunnerApi.Coder.newBuilder()
+                .addComponentCoderIds(pCollection.getCoderId())
+                .addComponentCoderIds(windowCoderId)
+                .setSpec(
+                    SdkFunctionSpec.newBuilder()
+                        .setSpec(
+                            FunctionSpec.newBuilder()
+                                .setUrn(validateCommonUrn("beam:coder:windowed_value:v1"))))
+                .build();
+
+        Coder javaCoder = CoderTranslation
+            .fromProto(windowedValueCoder, RehydratedComponents.forComponents(components));
+
+        // TODO: we wouldn't have to do this if the harness didn't always
+        // TODO: expect a KV<Void, T> as input for a side input, currently the key field
+        // TODO: in the MultimapSideInput request is always Void
+        // we know the input coder is always a WindowedValueCoder<KvCoder<Void, SomeCoder>>
+        // and the harness expects a list of things encoded with SomeCoder
+        KvCoder kvCoder =
+            (KvCoder) ((WindowedValueCoder) javaCoder).getValueCoder();
+        Coder someCoder = kvCoder.getValueCoder();
+
+        ByteString.Output output = ByteString.newOutput();
+        for (Object windowedValue : broadcastVariable) {
+          Object value = ((KV) ((WindowedValue) windowedValue).getValue()).getValue();
+          someCoder.encode(value, output);
+        }
+
+        CompletableFuture<Builder> response = new CompletableFuture<>();
+        BeamFnApi.StateResponse.Builder responseBuilder =
+            BeamFnApi.StateResponse
+                .newBuilder()
+                .setGet(BeamFnApi.StateGetResponse.newBuilder()
+                    .setData(output.toByteString()));
+        response.complete(responseBuilder);
+        return response;
+      }
+    };
+
+    try (SdkHarnessClient.ActiveBundle<InputT> bundle =
+        processor.newBundle(receiverMap, stateRequestHandler)) {
       FnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver();
       for (WindowedValue<InputT> value : input) {
         logger.finer(String.format("Sending value: %s", value));
