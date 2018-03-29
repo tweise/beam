@@ -271,7 +271,8 @@ public class FlinkBatchPortablePipelineTranslator
             PipelineOptionsTranslation.toProto(context.getPipelineOptions()),
             outputMap);
 
-    DataSet<WindowedValue<InputT>> inputDataSet = context.getDataSetOrThrow(stagePayload.getInput());
+    DataSet<WindowedValue<InputT>> inputDataSet = context.getDataSetOrThrow(
+            stagePayload.getInput());
 
     MapPartitionOperator<WindowedValue<InputT>, RawUnionValue> taggedDataset =
         new MapPartitionOperator<>(inputDataSet,

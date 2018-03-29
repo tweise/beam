@@ -178,7 +178,7 @@ public class RemoteExecutionTest implements Serializable {
 
     ExecutableProcessBundleDescriptor descriptor =
         ProcessBundleDescriptors.fromExecutableStage(
-            "my_stage", stage, components, dataServer.getApiServiceDescriptor());
+            "my_stage", stage, components, dataServer.getApiServiceDescriptor(), null);
     // TODO: This cast is nonsense
     RemoteInputDestination<WindowedValue<byte[]>> remoteDestination =
         (RemoteInputDestination<WindowedValue<byte[]>>)

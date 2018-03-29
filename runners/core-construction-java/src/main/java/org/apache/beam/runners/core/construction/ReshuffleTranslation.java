@@ -29,7 +29,8 @@ import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.Reshuffle;
 
 /**
- * Utility methods for translating a {@link Reshuffle} to and from {@link RunnerApi} representations.
+ * Utility methods for translating a {@link Reshuffle} to and from {@link RunnerApi}
+ * representations.
  */
 public class ReshuffleTranslation
     extends TransformPayloadTranslator.WithDefaultRehydration<Reshuffle<?, ?>> {
