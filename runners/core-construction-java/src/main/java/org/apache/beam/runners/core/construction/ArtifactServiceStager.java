@@ -246,7 +246,7 @@ public class ArtifactServiceStager {
     abstract Map<File, Throwable> getFailures();
   }
 
-  private static String escapePath(String path) {
+  static String escapePath(String path) {
     StringBuilder result = new StringBuilder(path.length() * 2);
     for (int i = 0; i < path.length(); i++) {
       char c = path.charAt(i);

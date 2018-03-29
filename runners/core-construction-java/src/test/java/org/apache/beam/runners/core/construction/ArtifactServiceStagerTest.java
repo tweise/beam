@@ -94,7 +94,7 @@ public class ArtifactServiceStagerTest {
     assertThat(stagedContent, equalTo(content));
 
     ArtifactMetadata staged = service.getManifest().getArtifact(0);
-    assertThat(staged.getName(), equalTo(file.getName()));
+    assertThat(staged.getName(), equalTo(ArtifactServiceStager.escapePath(file.getPath())));
     byte[] manifestMd5 = BaseEncoding.base64().decode(staged.getMd5());
     assertArrayEquals(contentMd5, manifestMd5);
 
