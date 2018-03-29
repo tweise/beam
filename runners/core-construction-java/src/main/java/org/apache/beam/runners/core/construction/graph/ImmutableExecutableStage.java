@@ -19,8 +19,10 @@
 package org.apache.beam.runners.core.construction.graph;
 
 import com.google.auto.value.AutoValue;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.util.Collection;
+import java.util.Map;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
@@ -31,13 +33,13 @@ abstract class ImmutableExecutableStage implements ExecutableStage {
   static ImmutableExecutableStage of(
       Environment environment,
       PCollectionNode input,
-      Collection<PCollectionNode> sideInputs,
+      Map<String, PCollectionNode> sideInputs,
       Collection<PTransformNode> transforms,
       Collection<PCollectionNode> outputs) {
     return new AutoValue_ImmutableExecutableStage(
         environment,
         input,
-        ImmutableSet.copyOf(sideInputs),
+        ImmutableMap.copyOf(sideInputs),
         ImmutableSet.copyOf(transforms),
         ImmutableSet.copyOf(outputs));
   }
@@ -50,7 +52,7 @@ abstract class ImmutableExecutableStage implements ExecutableStage {
   public abstract PCollectionNode getInputPCollection();
 
   @Override
-  public abstract Collection<PCollectionNode> getSideInputPCollections();
+  public abstract Map<String, PCollectionNode> getSideInputPCollections();
 
   @Override
   public abstract Collection<PTransformNode> getTransforms();

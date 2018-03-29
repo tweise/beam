@@ -25,7 +25,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
-import javax.annotation.Nullable;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.fnexecution.ServerFactory;
@@ -76,25 +75,22 @@ public class SingletonSdkHarnessManager implements  SdkHarnessManager {
     this.jobResourceManagerFactory = jobResourceManagerFactory;
   }
 
-  @Nullable
-  private JobResourceManager jobResourceManager = null;
-
   @Override
   public synchronized EnvironmentSession getSession(
       ProvisionApi.ProvisionInfo jobInfo,
       RunnerApi.Environment environment,
       ArtifactSource artifactSource) throws Exception {
 
-    if (jobResourceManager == null) {
-      jobResourceManager =
-          jobResourceManagerFactory.create(
-              jobInfo,
-              environment,
-              artifactSource,
-              serverFactory,
-              executorService);
-      jobResourceManager.start();
-    }
+    // TODO: Don't spin up a docker container for every stage but
+    // reuse one container per TaskManager/JVM.
+    JobResourceManager jobResourceManager =
+        jobResourceManagerFactory.create(
+            jobInfo,
+            environment,
+            artifactSource,
+            serverFactory,
+            executorService);
+    jobResourceManager.start();
 
     return jobResourceManager.getSession();
   }

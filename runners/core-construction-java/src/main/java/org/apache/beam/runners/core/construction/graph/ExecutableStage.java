@@ -18,8 +18,11 @@
 
 package org.apache.beam.runners.core.construction.graph;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
@@ -68,7 +71,7 @@ public interface ExecutableStage {
    * Returns the set of {@link PCollectionNode PCollections} that will be accessed by this {@link
    * ExecutableStage} as side inputs.
    */
-  Collection<PCollectionNode> getSideInputPCollections();
+  Map<String, PCollectionNode> getSideInputPCollections();
 
   /**
    * Returns the leaf {@link PCollectionNode PCollections} of this {@link ExecutableStage}.
@@ -114,9 +117,10 @@ public interface ExecutableStage {
     payload.setInput(input.getId());
 
     int sideInputIndex = 0;
-    for (PCollectionNode sideInputNode : getSideInputPCollections()) {
-      pt.putInputs(String.format("side_input_%s", sideInputIndex), sideInputNode.getId());
-      payload.addSideInputs(sideInputNode.getId());
+    for (Map.Entry<String, PCollectionNode> sideInputNode : getSideInputPCollections().entrySet()) {
+      pt.putInputs(
+          String.format("side_input_%s", sideInputIndex), sideInputNode.getValue().getId());
+      payload.putSideInputs(sideInputNode.getKey(), sideInputNode.getValue().getId());
       sideInputIndex++;
     }
 
@@ -154,12 +158,14 @@ public interface ExecutableStage {
     PCollectionNode input =
         PipelineNode.pCollection(
             payload.getInput(), components.getPcollectionsOrThrow(payload.getInput()));
-    List<PCollectionNode> sideInputs =
-        payload
-            .getSideInputsList()
-            .stream()
-            .map(id -> PipelineNode.pCollection(id, components.getPcollectionsOrThrow(id)))
-            .collect(Collectors.toList());
+    ImmutableMap.Builder<String, PCollectionNode> sideInputsBuilder = ImmutableMap.builder();
+    for (Map.Entry<String, String> sideInput : payload.getSideInputsMap().entrySet()) {
+      PCollection pCollection = components.getPcollectionsOrThrow(sideInput.getValue());
+      sideInputsBuilder.put(
+          sideInput.getKey(),
+          PipelineNode.pCollection(sideInput.getValue(), pCollection));
+    }
+    Map<String, PCollectionNode> sideInputs = sideInputsBuilder.build();
     List<PTransformNode> transforms =
         payload
             .getTransformsList()

@@ -58,8 +58,11 @@ import org.apache.beam.sdk.util.WindowedValue.FullWindowedValueCoder;
 // TODO: Rename to ExecutableStages?
 public class ProcessBundleDescriptors {
   public static ExecutableProcessBundleDescriptor fromExecutableStage(
-      String id, ExecutableStage stage, Components components, ApiServiceDescriptor dataEndpoint)
-      throws IOException {
+      String id,
+      ExecutableStage stage,
+      Components components,
+      ApiServiceDescriptor dataEndpoint,
+      ApiServiceDescriptor stateEndpoint) throws IOException {
     // Create with all of the processing transforms, and all of the components.
     // TODO: Remove the unreachable subcomponents if the size of the descriptor matters.
     ProcessBundleDescriptor.Builder bundleDescriptorBuilder =
@@ -75,6 +78,8 @@ public class ProcessBundleDescriptors {
                     .stream()
                     .collect(
                         Collectors.toMap(PTransformNode::getId, PTransformNode::getTransform)));
+
+    bundleDescriptorBuilder.setStateApiServiceDescriptor(stateEndpoint);
 
     RemoteInputDestination<WindowedValue<?>> inputDestination =
         addStageInput(
@@ -210,13 +215,20 @@ public class ProcessBundleDescriptors {
 
   private static Coder<WindowedValue<?>> instantiateWireCoder(
       RemoteGrpcPort port, Map<String, RunnerApi.Coder> components) throws IOException {
-    MessageWithComponents byteArrayCoder =
-        LengthPrefixUnknownCoders.forCoder(
-            port.getCoderId(), Components.newBuilder().putAllCoders(components).build(), true);
+//    MessageWithComponents byteArrayCoder =
+//        LengthPrefixUnknownCoders.forCoder(
+//            port.getCoderId(), Components.newBuilder().putAllCoders(components).build(), true);
+//    Coder<?> javaCoder =
+//        CoderTranslation.fromProto(
+//            byteArrayCoder.getCoder(),
+//            RehydratedComponents.forComponents(byteArrayCoder.getComponents()));
+    // TODO: revert this once we only see bytes on the Flink side, i.e. when it's okay
+    // to use byte coders everywhere
     Coder<?> javaCoder =
         CoderTranslation.fromProto(
-            byteArrayCoder.getCoder(),
-            RehydratedComponents.forComponents(byteArrayCoder.getComponents()));
+            components.get(port.getCoderId()),
+            RehydratedComponents.forComponents(
+                Components.newBuilder().putAllCoders(components).build()));
     checkArgument(
         javaCoder instanceof WindowedValue.FullWindowedValueCoder,
         "Unexpected Deserialized %s type, expected %s, got %s",

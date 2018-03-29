@@ -17,8 +17,6 @@
  */
 package org.apache.beam.runners.fnexecution.environment;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -58,8 +56,6 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
   private final GrpcFnServer<StaticGrpcProvisionService> provisioningServiceServer;
   private final ThrowingSupplier<InstructionRequestHandler> requestHandler;
 
-  private RemoteEnvironment dockerEnvironment = null;
-
   private SingletonDockerEnvironmentManager(
       DockerWrapper docker,
       GrpcFnServer<FnApiControlClientPoolService> controlServiceServer,
@@ -82,18 +78,10 @@ public class SingletonDockerEnvironmentManager implements EnvironmentManager {
    */
   @Override
   public RemoteEnvironment getEnvironment(Environment environment) throws Exception {
-    if (dockerEnvironment == null) {
-      dockerEnvironment = createDockerEnv(environment);
-    } else {
-      checkArgument(
-          environment.getUrl().equals(dockerEnvironment.getEnvironment().getUrl()),
-          "A %s must only be queried for a single %s. Existing %s, Argument %s",
-          SingletonDockerEnvironmentManager.class.getSimpleName(),
-          Environment.class.getSimpleName(),
-          dockerEnvironment.getEnvironment().getUrl(),
-          environment.getUrl());
-    }
-    return dockerEnvironment;
+    // TODO: don't create a new environment every time but reuse one environment. This was
+    // changed at some point because the harness or something couldn't correctly deal with
+    // multiple concurrent things going on.
+    return createDockerEnv(environment);
   }
 
   private DockerContainerEnvironment createDockerEnv(Environment environment) throws Exception {

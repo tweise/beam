@@ -167,6 +167,8 @@ public class FlinkBatchPortablePipelineTranslator
         this::translateExecutableStage);
     urnToTransformTranslator.put(PTransformTranslation.RESHUFFLE_URN,
         this::translateReshuffle);
+    urnToTransformTranslator.put(PTransformTranslation.CREATE_VIEW_TRANSFORM_URN,
+        this::translateView);
   }
 
   @Override
@@ -184,6 +186,20 @@ public class FlinkBatchPortablePipelineTranslator
       dataSet.output(new DiscardingOutputFormat<>());
     }
 
+  }
+
+  private <InputT> void translateView(
+      String id,
+      RunnerApi.Pipeline pipeline,
+      BatchTranslationContext context) {
+    RunnerApi.PTransform transform = pipeline.getComponents().getTransformsOrThrow(id);
+
+    DataSet<WindowedValue<InputT>> inputDataSet =
+        context.getDataSetOrThrow(
+            Iterables.getOnlyElement(transform.getInputsMap().values()));
+
+    context.addDataSet(Iterables.getOnlyElement(transform.getOutputsMap().values()),
+        inputDataSet);
   }
 
   private <K, V> void translateReshuffle(
@@ -254,14 +270,21 @@ public class FlinkBatchPortablePipelineTranslator
             stagePayload.getEnvironment(),
             PipelineOptionsTranslation.toProto(context.getPipelineOptions()),
             outputMap);
-    Map<String, String> inputs = transform.getInputsMap();
-    DataSet<WindowedValue<InputT>> inputDataSet =
-        context.getDataSetOrThrow(Iterables.getOnlyElement(inputs.values()));
-    DataSet<RawUnionValue> taggedDataset =
+
+    DataSet<WindowedValue<InputT>> inputDataSet = context.getDataSetOrThrow(stagePayload.getInput());
+
+    MapPartitionOperator<WindowedValue<InputT>, RawUnionValue> taggedDataset =
         new MapPartitionOperator<>(inputDataSet,
             typeInformation,
             function,
             transform.getUniqueName());
+
+    for (Map.Entry<String, String> sideInput : stagePayload.getSideInputsMap().entrySet()) {
+      // register under the global PCollection name, only ExecutableStageFunction needs to
+      // know the mapping from local name to global name
+      taggedDataset.withBroadcastSet(
+          context.getDataSetOrThrow(sideInput.getValue()), sideInput.getValue());
+    }
 
     for (String collectionId : outputs.values()) {
       pruneOutput(taggedDataset,

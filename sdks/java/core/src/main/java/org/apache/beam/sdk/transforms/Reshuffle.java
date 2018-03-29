@@ -20,16 +20,9 @@ package org.apache.beam.sdk.transforms;
 import java.util.concurrent.ThreadLocalRandom;
 import org.apache.beam.sdk.annotations.Experimental;
 import org.apache.beam.sdk.annotations.Internal;
-import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
-import org.apache.beam.sdk.transforms.windowing.ReshuffleTrigger;
-import org.apache.beam.sdk.transforms.windowing.TimestampCombiner;
-import org.apache.beam.sdk.transforms.windowing.Window;
-import org.apache.beam.sdk.util.IdentityWindowFn;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
-import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.beam.sdk.values.WindowingStrategy;
-import org.joda.time.Duration;
 
 /**
  * <b>For internal use only; no backwards compatibility guarantees.</b>
@@ -68,40 +61,14 @@ public class Reshuffle<K, V> extends PTransform<PCollection<KV<K, V>>, PCollecti
 
   @Override
   public PCollection<KV<K, V>> expand(PCollection<KV<K, V>> input) {
-    WindowingStrategy<?, ?> originalStrategy = input.getWindowingStrategy();
-    // If the input has already had its windows merged, then the GBK that performed the merge
-    // will have set originalStrategy.getWindowFn() to InvalidWindows, causing the GBK contained
-    // here to fail. Instead, we install a valid WindowFn that leaves all windows unchanged.
-    // The TimestampCombiner is set to ensure the GroupByKey does not shift elements forwards in
-    // time.
-    // Because this outputs as fast as possible, this should not hold the watermark.
-    Window<KV<K, V>> rewindow =
-        Window.<KV<K, V>>into(new IdentityWindowFn<>(originalStrategy.getWindowFn().windowCoder()))
-            .triggering(new ReshuffleTrigger<>())
-            .discardingFiredPanes()
-            .withTimestampCombiner(TimestampCombiner.EARLIEST)
-            .withAllowedLateness(Duration.millis(BoundedWindow.TIMESTAMP_MAX_VALUE.getMillis()));
+    // TODO: properly expand this again once Flink portable translation correctly translates
+    // a reshuffle as a native reshuffle
+    return PCollection.createPrimitiveOutputInternal(
+        input.getPipeline(),
+        input.getWindowingStrategy(),
+        input.isBounded(),
+        input.getCoder());
 
-    return input
-        .apply(rewindow)
-        .apply("ReifyOriginalTimestamps", Reify.timestampsInValue())
-        .apply(GroupByKey.create())
-        // Set the windowing strategy directly, so that it doesn't get counted as the user having
-        // set allowed lateness.
-        .setWindowingStrategyInternal(originalStrategy)
-        .apply(
-            "ExpandIterable",
-            ParDo.of(
-                new DoFn<KV<K, Iterable<TimestampedValue<V>>>, KV<K, TimestampedValue<V>>>() {
-                  @ProcessElement
-                  public void processElement(ProcessContext c) {
-                    K key = c.element().getKey();
-                    for (TimestampedValue<V> value : c.element().getValue()) {
-                      c.output(KV.of(key, value));
-                    }
-                  }
-                }))
-        .apply("RestoreOriginalTimestamps", ReifyTimestamps.extractFromValues());
   }
 
   /** Implementation of {@link #viaRandomKey()}. */

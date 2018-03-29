@@ -101,11 +101,13 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
             CachedArtifactSource.createDefault(getRuntimeContext().getDistributedCache());
     session = manager.getSession(provisionInfo, environment, artifactSource);
     Endpoints.ApiServiceDescriptor dataEndpoint = session.getDataServiceDescriptor();
+    Endpoints.ApiServiceDescriptor stateEndpoint = session.getStateServiceDescriptor();
     client = session.getClient();
     logger.info(String.format("Data endpoint: %s", dataEndpoint.getUrl()));
     String id = new BigInteger(32, ThreadLocalRandom.current()).toString(36);
-    processBundleDescriptor =
-            ProcessBundleDescriptors.fromExecutableStage(id, stage, components, dataEndpoint);
+    processBundleDescriptor = ProcessBundleDescriptors.fromExecutableStage(
+        id, stage, components, dataEndpoint, stateEndpoint);
+    // TODO: we need to wire in a StateRequestHandler when creating the bundle processor below
     logger.info(String.format("Process bundle descriptor: %s", processBundleDescriptor));
   }
 

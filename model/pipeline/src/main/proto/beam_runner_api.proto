@@ -214,15 +214,17 @@ message ExecutableStagePayload {
   // Input PCollection id.
   string input = 2;
 
-  // Side Input PCollection ids.
-  repeated string side_inputs = 3;
+  // (Optional) A mapping of side-input keys to side-input PCollection ids. The key is a
+  // concatenation of the local side-input name and the PTransform id.
+  // TODO: Should we keep this concatenated key or make it explicit in the type. Problem is
+  // that proto doesn't allow custom messages as map key.
+  map<string, string> side_inputs = 3;
 
   // PTransform ids contained within this executable stage.
   repeated string transforms = 4;
 
   // Output PCollection ids.
   repeated string outputs = 5;
-
 }
 
 // The payload for the primitive ParDo transform.

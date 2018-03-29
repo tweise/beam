@@ -47,6 +47,7 @@ import org.apache.beam.runners.core.construction.Environments;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
+import org.apache.beam.sdk.values.KV;
 
 /**
  * A {@link Pipeline} which has additional methods to relate nodes in the graph relative to each
@@ -239,16 +240,16 @@ public class QueryablePipeline {
    * Returns the {@link PCollectionNode PCollectionNodes} that the provided transform consumes as
    * side inputs.
    */
-  public Collection<PCollectionNode> getSideInputs(PTransformNode transform) {
+  public Map<String, PCollectionNode> getSideInputs(PTransformNode transform) {
     return getLocalSideInputNames(transform.getTransform())
         .stream()
         .map(
             localName -> {
               String pcollectionId = transform.getTransform().getInputsOrThrow(localName);
-              return PipelineNode.pCollection(
-                  pcollectionId, components.getPcollectionsOrThrow(pcollectionId));
+              return KV.of(localName + transform.getId(), PipelineNode.pCollection(
+                  pcollectionId, components.getPcollectionsOrThrow(pcollectionId)));
             })
-        .collect(Collectors.toSet());
+        .collect(Collectors.toMap(KV::getKey, KV::getValue));
   }
 
   private Set<String> getLocalSideInputNames(PTransform transform) {
@@ -265,6 +266,12 @@ public class QueryablePipeline {
 
   public Optional<Environment> getEnvironment(PTransformNode parDo) {
     return Environments.getEnvironment(parDo.getId(), components);
+  }
+
+  public Set<PTransformNode> getConsumers(PCollectionNode inputPCollection) {
+    return pipelineNetwork.successors(inputPCollection).stream().map(PTransformNode.class::cast)
+        .collect(
+            Collectors.toSet());
   }
 
   private interface PipelineEdge {

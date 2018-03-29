@@ -41,12 +41,14 @@ import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors;
 import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors.ExecutableProcessBundleDescriptor;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
+import org.apache.beam.runners.fnexecution.state.StateRequestHandler;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.transforms.join.RawUnionValue;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.flink.api.common.functions.RichMapPartitionFunction;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.runtime.operators.chaining.ExceptionInChainedStubException;
 import org.apache.flink.util.Collector;
 
 /** ExecutableStage operator. */
@@ -93,11 +95,12 @@ public class FlinkExecutableStageFunction<InputT> extends
         CachedArtifactSource.createDefault(getRuntimeContext().getDistributedCache());
     session = manager.getSession(provisionInfo, environment, artifactSource);
     Endpoints.ApiServiceDescriptor dataEndpoint = session.getDataServiceDescriptor();
+    Endpoints.ApiServiceDescriptor stateEndpoint = session.getStateServiceDescriptor();
     client = session.getClient();
     logger.info(String.format("Data endpoint: %s", dataEndpoint.getUrl()));
     String id = new BigInteger(32, ThreadLocalRandom.current()).toString(36);
-    processBundleDescriptor =
-        ProcessBundleDescriptors.fromExecutableStage(id, stage, components, dataEndpoint);
+    processBundleDescriptor = ProcessBundleDescriptors.fromExecutableStage(
+        id, stage, components, dataEndpoint, stateEndpoint);
     logger.info(String.format("Process bundle descriptor: %s", processBundleDescriptor));
   }
 
@@ -113,8 +116,12 @@ public class FlinkExecutableStageFunction<InputT> extends
         (RemoteInputDestination<WindowedValue<InputT>>)
         (RemoteInputDestination<?>)
             processBundleDescriptor.getRemoteInputDestination();
+
     SdkHarnessClient.BundleProcessor<InputT> processor = client.getProcessor(
-        processBundleDescriptor.getProcessBundleDescriptor(), destination);
+        processBundleDescriptor.getProcessBundleDescriptor(),
+        destination,
+        session.getStateDelegator());
+
     processor.getRegistrationFuture().toCompletableFuture().get();
     Map<BeamFnApi.Target, Coder<WindowedValue<?>>> outputCoders =
         processBundleDescriptor.getOutputTargetCoders();
@@ -151,7 +158,13 @@ public class FlinkExecutableStageFunction<InputT> extends
                   // be serial? If not, these calls may need to be synchronized.
                   // TODO: If this needs to be synchronized, consider requiring immutable maps.
                   synchronized (collectorLock) {
-                    collector.collect(new RawUnionValue(unionTag, input));
+                    try {
+                      collector.collect(new RawUnionValue(unionTag, input));
+                    } catch (ExceptionInChainedStubException e) {
+                      // Flink wraps exceptions that happen in certain places, make sure
+                      // to bubble up the right exception
+                      throw e.getWrappedException();
+                    }
                   }
                 }
               };
@@ -163,7 +176,11 @@ public class FlinkExecutableStageFunction<InputT> extends
         SdkHarnessClient.RemoteOutputReceiver<?>> receiverMap =
         receiverBuilder.build();
 
-    try (SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap)) {
+    StateRequestHandler stateRequestHandler =
+        new FlinkBatchStateRequestHandler(payload, components, getRuntimeContext());
+
+    try (SdkHarnessClient.ActiveBundle<InputT> bundle =
+        processor.newBundle(receiverMap, stateRequestHandler)) {
       FnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver();
       for (WindowedValue<InputT> value : input) {
         logger.finer(String.format("Sending value: %s", value));
@@ -181,4 +198,5 @@ public class FlinkExecutableStageFunction<InputT> extends
     client = null;
     session.close();
   }
+
 }
