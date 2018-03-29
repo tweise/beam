@@ -222,6 +222,8 @@ public class ProcessBundleDescriptors {
 //        CoderTranslation.fromProto(
 //            byteArrayCoder.getCoder(),
 //            RehydratedComponents.forComponents(byteArrayCoder.getComponents()));
+    // TODO: revert this once we only see bytes on the Flink side, i.e. when it's okay
+    // to use byte coders everywhere
     Coder<?> javaCoder =
         CoderTranslation.fromProto(
             components.get(port.getCoderId()),
