@@ -42,10 +42,8 @@ import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors.Exec
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
 import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.transforms.join.RawUnionValue;
-import org.apache.beam.sdk.util.MoreFutures;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.flink.api.common.functions.RichMapPartitionFunction;
 import org.apache.flink.configuration.Configuration;
@@ -165,24 +163,14 @@ public class FlinkExecutableStageFunction<InputT> extends
         SdkHarnessClient.RemoteOutputReceiver<?>> receiverMap =
         receiverBuilder.build();
 
-    SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap);
-    try (CloseableFnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver()) {
+    try (SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap)) {
+      FnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver();
       for (WindowedValue<InputT> value : input) {
         logger.finer(String.format("Sending value: %s", value));
         inputReceiver.accept(value);
       }
     }
 
-    // Await all outputs and active bundle completion. This is necessary because the Flink collector
-    // must not be accessed outside of mapPartition.
-    bundle.getOutputClients().values().forEach(client -> {
-      try {
-        client.awaitCompletion();
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    });
-    MoreFutures.get(bundle.getBundleResponse());
   }
 
   @Override

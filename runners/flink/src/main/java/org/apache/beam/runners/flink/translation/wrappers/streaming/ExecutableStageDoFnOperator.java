@@ -26,14 +26,12 @@ import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
 import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.fn.data.CloseableFnDataReceiver;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.state.TimeDomain;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
-import org.apache.beam.sdk.util.MoreFutures;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
@@ -168,22 +166,12 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
             SdkHarnessClient.RemoteOutputReceiver<?>> receiverMap =
             receiverBuilder.build();
 
-    SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap);
-    try (CloseableFnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver()) {
+    try (SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap)) {
+      FnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver();
       logger.finer(String.format("Sending value: %s", element));
       inputReceiver.accept(element);
     }
 
-    // Await all outputs and active bundle completion. This is necessary because the Flink collector
-    // must not be accessed outside of mapPartition.
-    bundle.getOutputClients().values().forEach(client -> {
-      try {
-        client.awaitCompletion();
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    });
-    MoreFutures.get(bundle.getBundleResponse());
   }
 
   @Override
