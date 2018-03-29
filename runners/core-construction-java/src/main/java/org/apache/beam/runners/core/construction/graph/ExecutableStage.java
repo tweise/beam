@@ -18,11 +18,9 @@
 
 package org.apache.beam.runners.core.construction.graph;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMap.Builder;
+import com.google.common.collect.ImmutableList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
@@ -31,6 +29,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Pipeline;
+import org.apache.beam.model.pipeline.v1.RunnerApi.SideInputId;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 
@@ -71,7 +70,7 @@ public interface ExecutableStage {
    * Returns the set of {@link PCollectionNode PCollections} that will be accessed by this {@link
    * ExecutableStage} as side inputs.
    */
-  Map<String, PCollectionNode> getSideInputPCollections();
+  Collection<SideInputId> getSideInputPCollections();
 
   /**
    * Returns the leaf {@link PCollectionNode PCollections} of this {@link ExecutableStage}.
@@ -117,10 +116,10 @@ public interface ExecutableStage {
     payload.setInput(input.getId());
 
     int sideInputIndex = 0;
-    for (Map.Entry<String, PCollectionNode> sideInputNode : getSideInputPCollections().entrySet()) {
-      pt.putInputs(
-          String.format("side_input_%s", sideInputIndex), sideInputNode.getValue().getId());
-      payload.putSideInputs(sideInputNode.getKey(), sideInputNode.getValue().getId());
+    for (SideInputId sideInputNode : getSideInputPCollections()) {
+      String localName = String.format("side_input_%s", sideInputIndex);
+      pt.putInputs(localName, sideInputNode.getCollectionId());
+      payload.addSideInputs(sideInputNode);
       sideInputIndex++;
     }
 
@@ -158,14 +157,12 @@ public interface ExecutableStage {
     PCollectionNode input =
         PipelineNode.pCollection(
             payload.getInput(), components.getPcollectionsOrThrow(payload.getInput()));
-    ImmutableMap.Builder<String, PCollectionNode> sideInputsBuilder = ImmutableMap.builder();
-    for (Map.Entry<String, String> sideInput : payload.getSideInputsMap().entrySet()) {
-      PCollection pCollection = components.getPcollectionsOrThrow(sideInput.getValue());
-      sideInputsBuilder.put(
-          sideInput.getKey(),
-          PipelineNode.pCollection(sideInput.getValue(), pCollection));
+    ImmutableList.Builder<SideInputId> sideInputsBuilder =
+        ImmutableList.builder();
+    for (SideInputId sideInput : payload.getSideInputsList()) {
+      sideInputsBuilder.add(sideInput);
     }
-    Map<String, PCollectionNode> sideInputs = sideInputsBuilder.build();
+    List<SideInputId> sideInputs = sideInputsBuilder.build();
     List<PTransformNode> transforms =
         payload
             .getTransformsList()

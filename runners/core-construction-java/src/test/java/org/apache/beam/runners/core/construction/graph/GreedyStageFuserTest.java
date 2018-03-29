@@ -39,6 +39,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.ParDoPayload;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SideInput;
+import org.apache.beam.model.pipeline.v1.RunnerApi.SideInputId;
 import org.apache.beam.model.pipeline.v1.RunnerApi.StateSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.TimerSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.WindowIntoPayload;
@@ -951,9 +952,12 @@ public class GreedyStageFuserTest {
     ExecutableStage subgraph =
         GreedyStageFuser.forGrpcPortRead(
             p, readOutput, ImmutableSet.of(PipelineNode.pTransform("parDo", parDoTransform)));
-    assertThat(
-        subgraph.getSideInputPCollections().values(),
-        contains(PipelineNode.pCollection("side_read.out", sideInputPCollection)));
+    SideInputId sideInputId = SideInputId.newBuilder()
+        .setTransformId("parDo")
+        .setLocalName("side_input")
+        .setCollectionId("side_read.out")
+        .build();
+    assertThat(subgraph.getSideInputPCollections(), contains(sideInputId));
     assertThat(subgraph.getOutputPCollections(), emptyIterable());
   }
 

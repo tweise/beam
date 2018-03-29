@@ -214,11 +214,8 @@ message ExecutableStagePayload {
   // Input PCollection id.
   string input = 2;
 
-  // (Optional) A mapping of side-input keys to side-input PCollection ids. The key is a
-  // concatenation of the local side-input name and the PTransform id.
-  // TODO: Should we keep this concatenated key or make it explicit in the type. Problem is
-  // that proto doesn't allow custom messages as map key.
-  map<string, string> side_inputs = 3;
+  // (Optional) The side inputs required for this executable stage.
+  repeated SideInputId side_inputs = 3;
 
   // PTransform ids contained within this executable stage.
   repeated string transforms = 4;
@@ -717,6 +714,18 @@ message TimestampTransform {
     // alignment_size, in milliseconds
     int64 offset = 4;
   }
+}
+
+// A reference to a side input id.
+message SideInputId {
+  // The id of the PTransform that references this side input.
+  string transform_id = 1;
+
+  // The local name of this side input from the PTransform that references it.
+  string local_name = 2;
+
+  // The id of the PCollection that backs this side input.
+  string collection_id = 3;
 }
 
 // A specification for how to "side input" a PCollection.
