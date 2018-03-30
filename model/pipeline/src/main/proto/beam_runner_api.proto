@@ -207,14 +207,14 @@ message PCollection {
 // ProcessBundleDescriptor.
 message ExecutableStagePayload {
 
-  // Environment in which this stage executes. We use an environment rather than environment id
+  // (Required) Environment in which this stage executes. We use an environment rather than environment id
   // because ExecutableStages use environments directly. This may change in the future.
   Environment environment = 1;
 
   // Input PCollection id.
   string input = 2;
 
-  // (Optional) The side inputs required for this executable stage.
+  // The side inputs required for this executable stage.
   repeated SideInputId side_inputs = 3;
 
   // PTransform ids contained within this executable stage.
@@ -222,6 +222,16 @@ message ExecutableStagePayload {
 
   // Output PCollection ids.
   repeated string outputs = 5;
+
+  // A reference to a side input id.
+  message SideInputId {
+    // (Required) The id of the PTransform that references this side input.
+    string transform_id = 1;
+
+    // (Required) The local name of this side input from the PTransform that references it.
+    string local_name = 2;
+  }
+
 }
 
 // The payload for the primitive ParDo transform.
@@ -714,18 +724,6 @@ message TimestampTransform {
     // alignment_size, in milliseconds
     int64 offset = 4;
   }
-}
-
-// A reference to a side input id.
-message SideInputId {
-  // The id of the PTransform that references this side input.
-  string transform_id = 1;
-
-  // The local name of this side input from the PTransform that references it.
-  string local_name = 2;
-
-  // The id of the PCollection that backs this side input.
-  string collection_id = 3;
 }
 
 // A specification for how to "side input" a PCollection.

@@ -40,7 +40,6 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.ParDoPayload;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SideInput;
-import org.apache.beam.model.pipeline.v1.RunnerApi.SideInputId;
 import org.apache.beam.runners.core.construction.Environments;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
@@ -215,12 +214,9 @@ public class QueryablePipelineTest {
     PTransformNode parDoNode =
         PipelineNode.pTransform("par_do", components.getTransformsOrThrow("par_do"));
 
-    SideInputId sideInputReference = SideInputId.newBuilder()
-        .setTransformId("par_do")
-        .setLocalName(sideInputLocalName)
-        .setCollectionId(sideInputId)
-        .build();
-    assertThat(qp.getSideInputs(parDoNode), contains(sideInputReference));
+    SideInputReference sideInputRef = SideInputReference.of(
+        "par_do", sideInputLocalName, sideInputNode);
+    assertThat(qp.getSideInputs(parDoNode), contains(sideInputRef));
     assertThat(qp.getPerElementConsumers(mainInput), contains(parDoNode));
     assertThat(qp.getPerElementConsumers(sideInputNode), not(contains(parDoNode)));
   }
@@ -261,13 +257,10 @@ public class QueryablePipelineTest {
     PTransformNode multiConsumerPT =
         PipelineNode.pTransform("multiConsumer",
             components.getTransformsOrThrow("multiConsumer"));
-    SideInputId sideInputId = SideInputId.newBuilder()
-        .setTransformId("multiConsumer")
-        .setLocalName("side_in")
-        .setCollectionId("read_pc")
-        .build();
+    SideInputReference sideInputRef = SideInputReference.of(
+        "multiConsumer", "side_in", multiInputPc);
     assertThat(qp.getPerElementConsumers(multiInputPc), contains(multiConsumerPT));
-    assertThat(qp.getSideInputs(multiConsumerPT), contains(sideInputId));
+    assertThat(qp.getSideInputs(multiConsumerPT), contains(sideInputRef));
   }
 
   /**

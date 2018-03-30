@@ -37,7 +37,6 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.model.pipeline.v1.RunnerApi.ParDoPayload;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SideInput;
-import org.apache.beam.model.pipeline.v1.RunnerApi.SideInputId;
 import org.apache.beam.model.pipeline.v1.RunnerApi.WindowIntoPayload;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.junit.Test;
@@ -71,15 +70,15 @@ public class ExecutableStageTest {
     PCollection sideInput = PCollection.newBuilder().setUniqueName("sideInput.in").build();
     PCollection output = PCollection.newBuilder().setUniqueName("output.out").build();
 
+    SideInputReference sideInputReference = SideInputReference.of(
+        "pt", "side_input",
+        PipelineNode.pCollection("sideInput.in", sideInput));
+
     ImmutableExecutableStage stage =
         ImmutableExecutableStage.of(
             env,
             PipelineNode.pCollection("input.out", input),
-            Collections.singleton(SideInputId.newBuilder()
-                .setTransformId("pt")
-                .setLocalName("side_input")
-                .setCollectionId("sideInput.in")
-                .build()),
+            Collections.singleton(sideInputReference),
             Collections.singleton(PipelineNode.pTransform("pt", pt)),
             Collections.singleton(PipelineNode.pCollection("output.out", output)));
 

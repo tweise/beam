@@ -27,7 +27,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
-import org.apache.beam.model.pipeline.v1.RunnerApi.SideInputId;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
 import org.slf4j.Logger;
@@ -80,7 +79,7 @@ public class GreedyStageFuser {
     ImmutableSet.Builder<PTransformNode> fusedTransforms = ImmutableSet.builder();
     fusedTransforms.addAll(initialNodes);
 
-    Set<SideInputId> sideInputs = new LinkedHashSet<>();
+    Set<SideInputReference> sideInputs = new LinkedHashSet<>();
     Set<PCollectionNode> fusedCollections = new LinkedHashSet<>();
     Set<PCollectionNode> materializedPCollections = new LinkedHashSet<>();
 
