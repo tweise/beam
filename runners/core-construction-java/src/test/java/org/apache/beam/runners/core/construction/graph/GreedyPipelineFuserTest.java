@@ -26,6 +26,7 @@ import static org.junit.Assert.assertThat;
 
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
+import org.apache.beam.model.pipeline.v1.RunnerApi.ExecutableStagePayload.SideInputId;
 import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
@@ -803,10 +804,14 @@ public class GreedyPipelineFuserTest {
                 .withNoOutputs()
                 .withTransforms("leftParDo", "rightParDo"),
             ExecutableStageMatcher.withInput("read.out")
+                .withSideInputs(SideInputId.newBuilder()
+                    .setTransformId("sideParDo")
+                    .setLocalName("side")
+                    .build())
                 .withNoOutputs()
                 .withTransforms("sideParDo"),
             ExecutableStageMatcher.withInput("sideImpulse.out")
-                .withNoOutputs()
+                .withOutputs("sideRead.out")
                 .withTransforms("sideRead")));
   }
 
