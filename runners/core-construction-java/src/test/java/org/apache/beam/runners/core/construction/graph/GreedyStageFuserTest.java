@@ -952,7 +952,7 @@ public class GreedyStageFuserTest {
         GreedyStageFuser.forGrpcPortRead(
             p, readOutput, ImmutableSet.of(PipelineNode.pTransform("parDo", parDoTransform)));
     assertThat(
-        subgraph.getSideInputPCollections(),
+        subgraph.getSideInputPCollections().values(),
         contains(PipelineNode.pCollection("side_read.out", sideInputPCollection)));
     assertThat(subgraph.getOutputPCollections(), emptyIterable());
   }

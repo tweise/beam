@@ -74,7 +74,8 @@ public class ExecutableStageTest {
         ImmutableExecutableStage.of(
             env,
             PipelineNode.pCollection("input.out", input),
-            Collections.singleton(PipelineNode.pCollection("sideInput.in", sideInput)),
+            Collections.singletonMap("sideInput.in", PipelineNode.pCollection("sideInput.in",
+                    sideInput)),
             Collections.singleton(PipelineNode.pTransform("pt", pt)),
             Collections.singleton(PipelineNode.pCollection("output.out", output)));
 

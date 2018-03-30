@@ -187,13 +187,15 @@ public class WordCount {
 //    final PCollectionView<Iterable<String>> view1 =
 //        p
 //            .apply(Impulse.create())
-//            .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings())).via((in) -> KV.of("side-1", "side-1")))
+//            .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(),
+// TypeDescriptors.strings())).via((in) -> KV.of("side-1", "side-1")))
 //            .apply(View.asIterable());
 
     final PCollectionView<Map<String, String>> view1 =
         p
         .apply(Impulse.create())
-        .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(), TypeDescriptors.strings())).via((in) -> KV.of("side-1", "side-1")))
+        .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(),
+                TypeDescriptors.strings())).via((in) -> KV.of("side-1", "side-1")))
         .apply(View.asMap());
 
     p

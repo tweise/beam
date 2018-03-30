@@ -214,7 +214,7 @@ public class QueryablePipelineTest {
     PTransformNode parDoNode =
         PipelineNode.pTransform("par_do", components.getTransformsOrThrow("par_do"));
 
-    assertThat(qp.getSideInputs(parDoNode), contains(sideInput));
+    assertThat(qp.getSideInputs(parDoNode).values(), contains(sideInput));
     assertThat(qp.getPerElementConsumers(mainInput), contains(parDoNode));
     assertThat(qp.getPerElementConsumers(sideInput), not(contains(parDoNode)));
   }
@@ -255,7 +255,7 @@ public class QueryablePipelineTest {
     PTransformNode multiConsumerPT =
         PipelineNode.pTransform("multiConsumer", components.getTransformsOrThrow("multiConsumer"));
     assertThat(qp.getPerElementConsumers(multiInputPc), contains(multiConsumerPT));
-    assertThat(qp.getSideInputs(multiConsumerPT), contains(multiInputPc));
+    assertThat(qp.getSideInputs(multiConsumerPT).values(), contains(multiInputPc));
   }
 
   /**
