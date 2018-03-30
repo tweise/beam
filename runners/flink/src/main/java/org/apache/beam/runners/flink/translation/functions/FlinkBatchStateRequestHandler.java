@@ -17,22 +17,31 @@
  */
 package org.apache.beam.runners.flink.translation.functions;
 
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.beam.runners.core.construction.UrnUtils.validateCommonUrn;
 
+import com.google.common.base.Preconditions;
 import com.google.protobuf.ByteString;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import org.apache.beam.collect.ImmutableMap;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.StateResponse.Builder;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.Components;
 import org.apache.beam.model.pipeline.v1.RunnerApi.ExecutableStagePayload;
+import org.apache.beam.model.pipeline.v1.RunnerApi.ExecutableStagePayload.SideInputId;
 import org.apache.beam.model.pipeline.v1.RunnerApi.FunctionSpec;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PCollection;
 import org.apache.beam.model.pipeline.v1.RunnerApi.SdkFunctionSpec;
 import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.RehydratedComponents;
+import org.apache.beam.runners.core.construction.graph.ExecutableStage;
+import org.apache.beam.runners.core.construction.graph.PipelineNode;
+import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
+import org.apache.beam.runners.core.construction.graph.SideInputReference;
 import org.apache.beam.runners.fnexecution.state.StateRequestHandler;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.KvCoder;
@@ -47,14 +56,30 @@ import org.apache.flink.api.common.functions.RuntimeContext;
  */
 class FlinkBatchStateRequestHandler implements StateRequestHandler {
 
-  private final RunnerApi.ExecutableStagePayload payload;
-  private final RunnerApi.Components components;
+  // Map from side input id to global PCollection id.
+  private final Map<SideInputId, PCollectionNode> sideInputToCollection;
+  private final Components components;
   private final RuntimeContext runtimeContext;
 
-  public FlinkBatchStateRequestHandler(
-      ExecutableStagePayload payload,
-      Components components, RuntimeContext runtimeContext) {
-    this.payload = payload;
+  public static FlinkBatchStateRequestHandler forStage(ExecutableStage stage, Components components,
+      RuntimeContext runtimeContext) {
+    ImmutableMap.Builder<SideInputId, PCollectionNode> sideInputBuilder = ImmutableMap.builder();
+    for (SideInputReference sideInput : stage.getSideInputReferences()) {
+      sideInputBuilder.put(
+          SideInputId.newBuilder()
+              .setTransformId(sideInput.transformId())
+              .setLocalName(sideInput.localName())
+              .build(),
+          sideInput.getCollection());
+    }
+    return new FlinkBatchStateRequestHandler(sideInputBuilder.build(), components, runtimeContext);
+  }
+
+  private FlinkBatchStateRequestHandler(
+      Map<SideInputId, PCollectionNode> sideInputToCollection,
+      Components components,
+      RuntimeContext runtimeContext) {
+    this.sideInputToCollection = sideInputToCollection;
     this.components = components;
     this.runtimeContext = runtimeContext;
   }
@@ -69,14 +94,18 @@ class FlinkBatchStateRequestHandler implements StateRequestHandler {
     BeamFnApi.StateKey.MultimapSideInput multimapSideInput =
         request.getStateKey().getMultimapSideInput();
 
-    String sideInputKey =
-        multimapSideInput.getSideInputId() + multimapSideInput.getPtransformId();
-    String globalPCollectionName =
-        payload.getSideInputsOrThrow(sideInputKey);
+    String transformId = multimapSideInput.getPtransformId();
+    String localName = multimapSideInput.getSideInputId();
 
-    List<Object> broadcastVariable = runtimeContext.getBroadcastVariable(globalPCollectionName);
+    PCollectionNode collectionNode = sideInputToCollection.get(
+        SideInputId.newBuilder()
+            .setTransformId(transformId)
+            .setLocalName(localName)
+            .build());
+    checkState(collectionNode != null, "No side input for %s/%s", transformId, localName);
+    List<Object> broadcastVariable = runtimeContext.getBroadcastVariable(collectionNode.getId());
 
-    PCollection pCollection = components.getPcollectionsOrThrow(globalPCollectionName);
+    PCollection pCollection = collectionNode.getPCollection();
 
     String windowingStrategyId = pCollection.getWindowingStrategyId();
     String windowCoderId =
