@@ -80,6 +80,7 @@ public class JobResourceEnvironmentSession implements EnvironmentSession {
 
   @Override
   public StateDelegator getStateDelegator() {
+    validateNotClosed();
     return stateDelegator;
   }
 
