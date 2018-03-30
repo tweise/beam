@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.model.pipeline.v1.RunnerApi.ExecutableStagePayload.SideInputId;
 import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
@@ -280,7 +281,7 @@ public class FlinkBatchPortablePipelineTranslator
             function,
             transform.getUniqueName());
 
-    for (RunnerApi.ExecutableStagePayload.SideInputId sideInputId : stagePayload.getSideInputsList()) {
+    for (SideInputId sideInputId : stagePayload.getSideInputsList()) {
       String collectionId = components.getTransformsOrThrow(sideInputId.getTransformId())
           .getInputsOrThrow(sideInputId.getLocalName());
       // Register under the global PCollection name. Only ExecutableStageFunction needs to know the
