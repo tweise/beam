@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.beam.runners.flink.translation.wrappers.streaming;
 
 import static org.apache.flink.util.Preconditions.checkState;
@@ -25,6 +42,7 @@ import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.apache.beam.runners.fnexecution.control.ProcessBundleDescriptors;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient;
 import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
+import org.apache.beam.runners.fnexecution.state.StateRequestHandler;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.options.PipelineOptions;
@@ -37,7 +55,6 @@ import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
 import org.joda.time.Instant;
-
 
 /**
  * ExecutableStageDoFnOperator.
@@ -107,7 +124,6 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     String id = new BigInteger(32, ThreadLocalRandom.current()).toString(36);
     processBundleDescriptor = ProcessBundleDescriptors.fromExecutableStage(
         id, stage, components, dataEndpoint, stateEndpoint);
-    // TODO: we need to wire in a StateRequestHandler when creating the bundle processor below
     logger.info(String.format("Process bundle descriptor: %s", processBundleDescriptor));
   }
 
@@ -125,7 +141,9 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
                     (RemoteInputDestination<?>)
                             processBundleDescriptor.getRemoteInputDestination();
     SdkHarnessClient.BundleProcessor<InputT> processor = client.getProcessor(
-            processBundleDescriptor.getProcessBundleDescriptor(), destination);
+            processBundleDescriptor.getProcessBundleDescriptor(),
+            destination,
+            session.getStateDelegator());
     processor.getRegistrationFuture().toCompletableFuture().get();
     Map<BeamFnApi.Target, Coder<WindowedValue<?>>> outputCoders =
             processBundleDescriptor.getOutputTargetCoders();
@@ -168,7 +186,12 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
             SdkHarnessClient.RemoteOutputReceiver<?>> receiverMap =
             receiverBuilder.build();
 
-    try (SdkHarnessClient.ActiveBundle<InputT> bundle = processor.newBundle(receiverMap)) {
+    // TODO: wire with side input state
+    StateRequestHandler stateRequestHandler =
+            new FlinkStreamingStateRequestHandler(payload, components, getRuntimeContext());
+
+    try (SdkHarnessClient.ActiveBundle<InputT> bundle =
+                 processor.newBundle(receiverMap, stateRequestHandler)) {
       FnDataReceiver<WindowedValue<InputT>> inputReceiver = bundle.getInputReceiver();
       logger.finer(String.format("Sending value: %s", element));
       inputReceiver.accept(element);
