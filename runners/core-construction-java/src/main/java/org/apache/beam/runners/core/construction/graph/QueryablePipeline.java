@@ -47,7 +47,6 @@ import org.apache.beam.runners.core.construction.Environments;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PCollectionNode;
 import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNode;
-import org.apache.beam.sdk.values.KV;
 
 /**
  * A {@link Pipeline} which has additional methods to relate nodes in the graph relative to each
@@ -240,16 +239,18 @@ public class QueryablePipeline {
    * Returns the {@link PCollectionNode PCollectionNodes} that the provided transform consumes as
    * side inputs.
    */
-  public Map<String, PCollectionNode> getSideInputs(PTransformNode transform) {
+  public Set<SideInputReference> getSideInputs(PTransformNode transform) {
     return getLocalSideInputNames(transform.getTransform())
         .stream()
         .map(
             localName -> {
-              String pcollectionId = transform.getTransform().getInputsOrThrow(localName);
-              return KV.of(localName + transform.getId(), PipelineNode.pCollection(
-                  pcollectionId, components.getPcollectionsOrThrow(pcollectionId)));
+              String transformId = transform.getId();
+              String collectionId = transform.getTransform().getInputsOrThrow(localName);
+              PCollection collection = components.getPcollectionsOrThrow(collectionId);
+              return SideInputReference.of(
+                  transformId, localName, PipelineNode.pCollection(collectionId, collection));
             })
-        .collect(Collectors.toMap(KV::getKey, KV::getValue));
+        .collect(Collectors.toSet());
   }
 
   private Set<String> getLocalSideInputNames(PTransform transform) {

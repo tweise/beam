@@ -924,8 +924,8 @@ public class GreedyStageFuserTest {
                             .build()
                             .toByteString()))
             .build();
-    PCollection sideInputPCollection =
-        PCollection.newBuilder().setUniqueName("side_read.out").build();
+    PCollectionNode sideInputNode = PipelineNode.pCollection(
+        "side_read.out", PCollection.newBuilder().setUniqueName("side_read.out").build());
     QueryablePipeline p =
         QueryablePipeline.forPrimitivesIn(
             partialComponents
@@ -939,7 +939,7 @@ public class GreedyStageFuserTest {
                         .putInputs("input", "impulse.out")
                         .putOutputs("output", "side_read.out")
                         .build())
-                .putPcollections("side_read.out", sideInputPCollection)
+                .putPcollections(sideInputNode.getId(), sideInputNode.getPCollection())
                 .putTransforms("parDo", parDoTransform)
                 .putPcollections(
                     "parDo.out", PCollection.newBuilder().setUniqueName("parDo.out").build())
@@ -951,9 +951,9 @@ public class GreedyStageFuserTest {
     ExecutableStage subgraph =
         GreedyStageFuser.forGrpcPortRead(
             p, readOutput, ImmutableSet.of(PipelineNode.pTransform("parDo", parDoTransform)));
-    assertThat(
-        subgraph.getSideInputPCollections().values(),
-        contains(PipelineNode.pCollection("side_read.out", sideInputPCollection)));
+    SideInputReference sideInputRef = SideInputReference.of(
+        "parDo", "side_input", sideInputNode);
+    assertThat(subgraph.getSideInputReferences(), contains(sideInputRef));
     assertThat(subgraph.getOutputPCollections(), emptyIterable());
   }
 

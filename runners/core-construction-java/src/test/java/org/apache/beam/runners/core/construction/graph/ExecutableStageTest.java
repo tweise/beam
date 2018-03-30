@@ -70,12 +70,15 @@ public class ExecutableStageTest {
     PCollection sideInput = PCollection.newBuilder().setUniqueName("sideInput.in").build();
     PCollection output = PCollection.newBuilder().setUniqueName("output.out").build();
 
+    SideInputReference sideInputReference = SideInputReference.of(
+        "pt", "side_input",
+        PipelineNode.pCollection("sideInput.in", sideInput));
+
     ImmutableExecutableStage stage =
         ImmutableExecutableStage.of(
             env,
             PipelineNode.pCollection("input.out", input),
-            Collections.singletonMap("sideInput.in", PipelineNode.pCollection("sideInput.in",
-                    sideInput)),
+            Collections.singleton(sideInputReference),
             Collections.singleton(PipelineNode.pTransform("pt", pt)),
             Collections.singleton(PipelineNode.pCollection("output.out", output)));
 

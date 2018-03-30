@@ -29,7 +29,9 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
@@ -200,23 +202,23 @@ public class QueryablePipelineTest {
                 .values());
     PCollectionNode mainInput =
         PipelineNode.pCollection(mainInputName, components.getPcollectionsOrThrow(mainInputName));
-    String sideInputName =
-        getOnlyElement(
-            components
-                .getTransformsOrThrow("par_do")
-                .getInputsMap()
-                .values()
-                .stream()
-                .filter(pcollectionName -> !pcollectionName.equals(mainInputName))
-                .collect(Collectors.toSet()));
-    PCollectionNode sideInput =
-        PipelineNode.pCollection(sideInputName, components.getPcollectionsOrThrow(sideInputName));
+    Map.Entry<String, String> sideInputEntry = Iterables.getOnlyElement(
+        components.getTransformsOrThrow("par_do")
+        .getInputsMap().entrySet().stream()
+        .filter(entry -> !entry.getValue().equals(mainInputName))
+        .collect(Collectors.toSet()));
+    String sideInputLocalName = sideInputEntry.getKey();
+    String sideInputId = sideInputEntry.getValue();
+    PCollectionNode sideInputNode =
+        PipelineNode.pCollection(sideInputId, components.getPcollectionsOrThrow(sideInputId));
     PTransformNode parDoNode =
         PipelineNode.pTransform("par_do", components.getTransformsOrThrow("par_do"));
 
-    assertThat(qp.getSideInputs(parDoNode).values(), contains(sideInput));
+    SideInputReference sideInputRef = SideInputReference.of(
+        "par_do", sideInputLocalName, sideInputNode);
+    assertThat(qp.getSideInputs(parDoNode), contains(sideInputRef));
     assertThat(qp.getPerElementConsumers(mainInput), contains(parDoNode));
-    assertThat(qp.getPerElementConsumers(sideInput), not(contains(parDoNode)));
+    assertThat(qp.getPerElementConsumers(sideInputNode), not(contains(parDoNode)));
   }
 
   /**
@@ -253,9 +255,12 @@ public class QueryablePipelineTest {
     PCollectionNode multiInputPc =
         PipelineNode.pCollection("read_pc", components.getPcollectionsOrThrow("read_pc"));
     PTransformNode multiConsumerPT =
-        PipelineNode.pTransform("multiConsumer", components.getTransformsOrThrow("multiConsumer"));
+        PipelineNode.pTransform("multiConsumer",
+            components.getTransformsOrThrow("multiConsumer"));
+    SideInputReference sideInputRef = SideInputReference.of(
+        "multiConsumer", "side_in", multiInputPc);
     assertThat(qp.getPerElementConsumers(multiInputPc), contains(multiConsumerPT));
-    assertThat(qp.getSideInputs(multiConsumerPT).values(), contains(multiInputPc));
+    assertThat(qp.getSideInputs(multiConsumerPT), contains(sideInputRef));
   }
 
   /**
