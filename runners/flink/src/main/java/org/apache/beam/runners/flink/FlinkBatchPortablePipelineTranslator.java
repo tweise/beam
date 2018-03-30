@@ -280,11 +280,14 @@ public class FlinkBatchPortablePipelineTranslator
             function,
             transform.getUniqueName());
 
-    for (Map.Entry<String, String> sideInput : stagePayload.getSideInputsMap().entrySet()) {
-      // register under the global PCollection name, only ExecutableStageFunction needs to
-      // know the mapping from local name to global name
+    for (RunnerApi.ExecutableStagePayload.SideInputId sideInputId : stagePayload.getSideInputsList()) {
+      String collectionId = components.getTransformsOrThrow(sideInputId.getTransformId())
+          .getInputsOrThrow(sideInputId.getLocalName());
+      // Register under the global PCollection name. Only ExecutableStageFunction needs to know the
+      // mapping from local name to global name and how to translate the broadcast data to a state
+      // API view.
       taggedDataset.withBroadcastSet(
-          context.getDataSetOrThrow(sideInput.getValue()), sideInput.getValue());
+          context.getDataSetOrThrow(collectionId), collectionId);
     }
 
     for (String collectionId : outputs.values()) {

@@ -64,6 +64,7 @@ public class FlinkExecutableStageFunction<InputT> extends
   private final Map<String, Integer> outputMap;
   private final Struct pipelineOptions;
 
+  private transient ExecutableStage executableStage;
   private transient EnvironmentSession session;
   private transient SdkHarnessClient client;
   private transient ExecutableProcessBundleDescriptor processBundleDescriptor;
@@ -83,7 +84,7 @@ public class FlinkExecutableStageFunction<InputT> extends
 
   @Override
   public void open(Configuration parameters) throws Exception {
-    ExecutableStage stage = ExecutableStage.fromPayload(payload, components);
+    executableStage = ExecutableStage.fromPayload(payload, components);
     SdkHarnessManager manager = SingletonSdkHarnessManager.getInstance();
     ProvisionApi.ProvisionInfo provisionInfo = ProvisionApi.ProvisionInfo.newBuilder()
         // TODO: Set this from job metadata.
@@ -100,7 +101,7 @@ public class FlinkExecutableStageFunction<InputT> extends
     logger.info(String.format("Data endpoint: %s", dataEndpoint.getUrl()));
     String id = new BigInteger(32, ThreadLocalRandom.current()).toString(36);
     processBundleDescriptor = ProcessBundleDescriptors.fromExecutableStage(
-        id, stage, components, dataEndpoint, stateEndpoint);
+        id, executableStage, components, dataEndpoint, stateEndpoint);
     logger.info(String.format("Process bundle descriptor: %s", processBundleDescriptor));
   }
 
@@ -177,7 +178,7 @@ public class FlinkExecutableStageFunction<InputT> extends
         receiverBuilder.build();
 
     StateRequestHandler stateRequestHandler =
-        new FlinkBatchStateRequestHandler(payload, components, getRuntimeContext());
+        FlinkBatchStateRequestHandler.forStage(executableStage, components, getRuntimeContext());
 
     try (SdkHarnessClient.ActiveBundle<InputT> bundle =
         processor.newBundle(receiverMap, stateRequestHandler)) {
