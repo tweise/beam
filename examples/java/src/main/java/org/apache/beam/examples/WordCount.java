@@ -20,6 +20,8 @@ package org.apache.beam.examples;
 import java.util.Map;
 import org.apache.beam.examples.common.ExampleUtils;
 import org.apache.beam.sdk.Pipeline;
+import org.apache.beam.sdk.PipelineResult;
+import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.metrics.Counter;
 import org.apache.beam.sdk.metrics.Distribution;
 import org.apache.beam.sdk.metrics.Metrics;
@@ -184,37 +186,40 @@ public class WordCount {
   static void runWordCount(WordCountOptions options) {
     Pipeline p = Pipeline.create(options);
 
-//    final PCollectionView<Iterable<String>> view1 =
-//        p
-//            .apply(Impulse.create())
-//            .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(),
-// TypeDescriptors.strings())).via((in) -> KV.of("side-1", "side-1")))
-//            .apply(View.asIterable());
+    //PCollectionView<Map<String, String>> view1 =
+    //    p
+    //    .apply(Impulse.create())
+    //    .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(),
+    //            TypeDescriptors.strings())).via((in) -> KV.of("side-1", "side-1")))
+    //    .apply(View.asMap());
 
-    final PCollectionView<Map<String, String>> view1 =
-        p
-        .apply(Impulse.create())
-        .apply(MapElements.into(TypeDescriptors.kvs(TypeDescriptors.strings(),
-                TypeDescriptors.strings())).via((in) -> KV.of("side-1", "side-1")))
-        .apply(View.asMap());
+    //p
+    //  .apply(Impulse.create())
+    //  .apply(MapElements.into(TypeDescriptors.strings()).via((in) -> "main-1"))
+    //  .apply(ParDo.of(new DoFn<String, Void>() {
 
-    p
-      .apply(Impulse.create())
-      .apply(MapElements.into(TypeDescriptors.strings()).via((in) -> "main-1"))
-      .apply(ParDo.of(new DoFn<String, Void>() {
+    //    @ProcessElement
+    //    public void process(ProcessContext c) {
+    //      Map<String, String> sideInput = c.sideInput(view1);
+    //      LOG.info("GOT " + c.element() + " side: " + sideInput.get("side-1"));
+    //    }
+    //  }).withSideInputs(view1));
 
-        @ProcessElement
-        public void process(ProcessContext c) {
-          Map<String, String> sideInput = c.sideInput(view1);
-          LOG.info("GOT " + c.element() + " side: " + sideInput.get("side-1"));
-        }
-      }).withSideInputs(view1));
+    // TODO: TextIO.write crashes the fuser during translation due to multiple transforms creating
+    // the same PCollection. Reenable text output when that is fixed.
+    p.apply("ReadLines", TextIO.read().from(options.getInputFile()))
+        .apply(new CountWords())
+        .apply(MapElements.via(new FormatAsTextFn()));
+        //.apply("WriteCounts", TextIO.write().to(options.getOutput()));
 
-    p.run().waitUntilFinish();
+    PipelineResult.State finalState = p.run().waitUntilFinish();
+    LOG.info("Pipeline finished in state {}", finalState);
   }
 
   public static void main(String[] args) {
-    WordCountOptions options = PipelineOptionsFactory.fromArgs(args).as(WordCountOptions.class);
+    WordCountOptions options = PipelineOptionsFactory.fromArgs(args)
+        .withValidation()
+        .as(WordCountOptions.class);
 
     runWordCount(options);
   }
