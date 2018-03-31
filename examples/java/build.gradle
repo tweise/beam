@@ -155,4 +155,5 @@ task runWordCount(type: JavaExec) {
   classpath = configurations.shadow + sourceSets.main.runtimeClasspath
   main = "org.apache.beam.examples.WordCount"
   args "--runner=org.apache.beam.runners.reference.PortableRunner"
+  args "--output=/tmp/wordcount.txt"
 }
