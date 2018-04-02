@@ -18,10 +18,8 @@
 package org.apache.beam.runners.fnexecution.environment;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -96,6 +94,8 @@ public class SingletonDockerEnvironmentManagerTest {
     verify(docker).killContainer(CONTAINER_ID);
   }
 
+  // TODO: Enable this test if we ever reenable singleton environments.
+  /*
   @Test
   public void onlyAcceptsSingleEnvironment() throws Exception {
     when(docker.runImage(Mockito.eq(IMAGE_NAME), Mockito.any(),
@@ -111,6 +111,7 @@ public class SingletonDockerEnvironmentManagerTest {
       assertThat(expected, instanceOf(IllegalArgumentException.class));
     }
   }
+  */
 
   private SingletonDockerEnvironmentManager getManager() {
     return SingletonDockerEnvironmentManager.forServices(

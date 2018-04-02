@@ -39,7 +39,6 @@ import org.apache.beam.sdk.fn.channel.ManagedChannelFactory;
 import org.apache.beam.sdk.fn.stream.StreamObserverFactory;
 import org.apache.beam.sdk.options.ExperimentalOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.util.common.ReflectHelpers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,9 +80,8 @@ public class FnHarness {
 
     ObjectMapper objectMapper = new ObjectMapper().registerModules(
         ObjectMapper.findModules(ReflectHelpers.findClassLoader()));
-//    PipelineOptions options = objectMapper.readValue(
-//        System.getenv(PIPELINE_OPTIONS), PipelineOptions.class);
-    PipelineOptions options = PipelineOptionsFactory.create();
+    PipelineOptions options = objectMapper.readValue(
+        System.getenv(PIPELINE_OPTIONS), PipelineOptions.class);
 
     Endpoints.ApiServiceDescriptor loggingApiServiceDescriptor =
         getApiServiceDescriptor(LOGGING_API_SERVICE_DESCRIPTOR);

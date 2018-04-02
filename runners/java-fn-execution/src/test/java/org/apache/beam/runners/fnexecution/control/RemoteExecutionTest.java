@@ -55,6 +55,7 @@ import org.apache.beam.runners.fnexecution.data.GrpcDataService;
 import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
 import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.logging.Slf4jLogWriter;
+import org.apache.beam.runners.fnexecution.state.GrpcStateService;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.BigEndianLongCoder;
 import org.apache.beam.sdk.coders.Coder;
@@ -86,6 +87,7 @@ import org.junit.runners.JUnit4;
 public class RemoteExecutionTest implements Serializable {
   private transient GrpcFnServer<FnApiControlClientPoolService> controlServer;
   private transient GrpcFnServer<GrpcDataService> dataServer;
+  private transient GrpcFnServer<GrpcStateService> stateServer;
   private transient GrpcFnServer<GrpcLoggingService> loggingServer;
   private transient SdkHarnessClient controlClient;
 
@@ -101,6 +103,9 @@ public class RemoteExecutionTest implements Serializable {
     dataServer =
         GrpcFnServer.allocatePortAndCreateFor(
             GrpcDataService.create(serverExecutor), serverFactory);
+    stateServer =
+        GrpcFnServer.allocatePortAndCreateFor(
+            GrpcStateService.create(), serverFactory);
     loggingServer =
         GrpcFnServer.allocatePortAndCreateFor(
             GrpcLoggingService.forWriter(Slf4jLogWriter.getDefault()), serverFactory);
@@ -178,7 +183,11 @@ public class RemoteExecutionTest implements Serializable {
 
     ExecutableProcessBundleDescriptor descriptor =
         ProcessBundleDescriptors.fromExecutableStage(
-            "my_stage", stage, components, dataServer.getApiServiceDescriptor(), null);
+            "my_stage",
+            stage,
+            components,
+            dataServer.getApiServiceDescriptor(),
+            stateServer.getApiServiceDescriptor());
     // TODO: This cast is nonsense
     RemoteInputDestination<WindowedValue<byte[]>> remoteDestination =
         (RemoteInputDestination<WindowedValue<byte[]>>)

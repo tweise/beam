@@ -75,12 +75,15 @@ public class ImmutableExecutableStageTest {
             .putEnvironments("foo", env)
             .build();
 
+    SideInputReference sideInputRef = SideInputReference.of("pt", "side_input",
+        PipelineNode.pCollection("sideInput.in", sideInput));
+
     ImmutableExecutableStage stage =
         ImmutableExecutableStage.ofFullComponents(
             components,
             env,
             PipelineNode.pCollection("input.out", input),
-            Collections.singleton(PipelineNode.pCollection("sideInput.in", sideInput)),
+            Collections.singleton(sideInputRef),
             Collections.singleton(PipelineNode.pTransform("pt", pt)),
             Collections.singleton(PipelineNode.pCollection("output.out", output)));
 

@@ -58,7 +58,7 @@ class FlinkBatchStateRequestHandler implements StateRequestHandler {
   private final Components components;
   private final RuntimeContext runtimeContext;
 
-  public static FlinkBatchStateRequestHandler forStage(ExecutableStage stage, Components components,
+  public static FlinkBatchStateRequestHandler forStage(ExecutableStage stage,
       RuntimeContext runtimeContext) {
     ImmutableMap.Builder<SideInputId, PCollectionNode> sideInputBuilder = ImmutableMap.builder();
     for (SideInputReference sideInput : stage.getSideInputReferences()) {
@@ -69,6 +69,7 @@ class FlinkBatchStateRequestHandler implements StateRequestHandler {
               .build(),
           sideInput.getCollection());
     }
+    Components components = stage.getComponents();
     return new FlinkBatchStateRequestHandler(sideInputBuilder.build(), components, runtimeContext);
   }
 

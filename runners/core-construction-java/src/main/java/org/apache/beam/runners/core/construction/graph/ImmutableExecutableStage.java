@@ -33,7 +33,7 @@ abstract class ImmutableExecutableStage implements ExecutableStage {
       Components components,
       Environment environment,
       PCollectionNode input,
-      Collection<PCollectionNode> sideInputs,
+      Collection<SideInputReference> sideInputs,
       Collection<PTransformNode> transforms,
       Collection<PCollectionNode> outputs) {
     Components prunedComponents =

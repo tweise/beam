@@ -59,7 +59,6 @@ public class FlinkExecutableStageFunction<InputT> extends
       Logger.getLogger(FlinkExecutableStageFunction.class.getName());
 
   private final RunnerApi.ExecutableStagePayload payload;
-  private final RunnerApi.Components components;
   private final RunnerApi.Environment environment;
   private final Map<String, Integer> outputMap;
   private final Struct pipelineOptions;
@@ -71,12 +70,10 @@ public class FlinkExecutableStageFunction<InputT> extends
 
   public FlinkExecutableStageFunction(
       RunnerApi.ExecutableStagePayload payload,
-      RunnerApi.Components components,
       RunnerApi.Environment environment,
       Struct pipelineOptions,
       Map<String, Integer> outputMap) {
     this.payload = payload;
-    this.components = components;
     this.environment = environment;
     this.pipelineOptions = pipelineOptions;
     this.outputMap = outputMap;
@@ -84,7 +81,7 @@ public class FlinkExecutableStageFunction<InputT> extends
 
   @Override
   public void open(Configuration parameters) throws Exception {
-    executableStage = ExecutableStage.fromPayload(payload, components);
+    executableStage = ExecutableStage.fromPayload(payload);
     SdkHarnessManager manager = SingletonSdkHarnessManager.getInstance();
     ProvisionApi.ProvisionInfo provisionInfo = ProvisionApi.ProvisionInfo.newBuilder()
         // TODO: Set this from job metadata.
@@ -101,7 +98,7 @@ public class FlinkExecutableStageFunction<InputT> extends
     logger.info(String.format("Data endpoint: %s", dataEndpoint.getUrl()));
     String id = new BigInteger(32, ThreadLocalRandom.current()).toString(36);
     processBundleDescriptor = ProcessBundleDescriptors.fromExecutableStage(
-        id, executableStage, components, dataEndpoint, stateEndpoint);
+        id, executableStage, payload.getComponents(), dataEndpoint, stateEndpoint);
     logger.info(String.format("Process bundle descriptor: %s", processBundleDescriptor));
   }
 
@@ -178,7 +175,7 @@ public class FlinkExecutableStageFunction<InputT> extends
         receiverBuilder.build();
 
     StateRequestHandler stateRequestHandler =
-        FlinkBatchStateRequestHandler.forStage(executableStage, components, getRuntimeContext());
+        FlinkBatchStateRequestHandler.forStage(executableStage, getRuntimeContext());
 
     try (SdkHarnessClient.ActiveBundle<InputT> bundle =
         processor.newBundle(receiverMap, stateRequestHandler)) {

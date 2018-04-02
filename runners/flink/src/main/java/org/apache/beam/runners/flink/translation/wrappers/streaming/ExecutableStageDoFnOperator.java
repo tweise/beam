@@ -105,7 +105,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
   public void open() throws Exception {
     super.open();
 
-    ExecutableStage stage = ExecutableStage.fromPayload(payload, components);
+    ExecutableStage stage = ExecutableStage.fromPayload(payload);
     SdkHarnessManager manager = SingletonSdkHarnessManager.getInstance();
     Struct options = PipelineOptionsTranslation.toProto(PipelineOptionsFactory.create());
     ProvisionApi.ProvisionInfo provisionInfo = ProvisionApi.ProvisionInfo.newBuilder()
