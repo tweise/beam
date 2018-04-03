@@ -47,6 +47,15 @@ import org.apache.beam.runners.core.construction.graph.PipelineNode.PTransformNo
  * PCollections} which are produced by multiple independently executable stages.
  */
 class OutputDeduplicator {
+
+  /**
+   * Ensure that no {@link PCollection} output by any of the {@code stages} or {@code
+   * unfusedTransforms} is produced by more than one of those stages or transforms.
+   *
+   * <p>For each {@link PCollection} output by multiple stages and/or transforms, each producer is
+   * rewritten to produce a partial {@link PCollection}, which are then flattened together via an
+   * introduced Flatten node which produces the original output.
+   */
   static DeduplicationResult ensureSingleProducer(
       QueryablePipeline pipeline,
       Collection<ExecutableStage> stages,
@@ -119,12 +128,12 @@ class OutputDeduplicator {
     Set<PTransformNode> introducedFlattens = new LinkedHashSet<>();
     for (Map.Entry<String, Collection<PCollectionNode>> partialFlattenTargets :
         originalToPartial.asMap().entrySet()) {
-      PTransform flattenSynthetics =
-          createSyntheticFlatten(partialFlattenTargets.getKey(), partialFlattenTargets.getValue());
+      PTransform flattenPartialPCollections =
+          createFlattenOfPartials(partialFlattenTargets.getKey(), partialFlattenTargets.getValue());
       String flattenId =
           SyntheticNodes.uniqueId("unzipped_flatten", unzippedComponents::containsTransforms);
-      unzippedComponents.putTransforms(flattenId, flattenSynthetics);
-      introducedFlattens.add(PipelineNode.pTransform(flattenId, flattenSynthetics));
+      unzippedComponents.putTransforms(flattenId, flattenPartialPCollections);
+      introducedFlattens.add(PipelineNode.pTransform(flattenId, flattenPartialPCollections));
     }
 
     Components components = unzippedComponents.build();
@@ -151,7 +160,7 @@ class OutputDeduplicator {
     abstract Map<String, PTransformNode> getDeduplicatedTransforms();
   }
 
-  private static PTransform createSyntheticFlatten(
+  private static PTransform createFlattenOfPartials(
       String outputId, Collection<PCollectionNode> generatedInputs) {
     PTransform.Builder newFlattenBuilder = PTransform.newBuilder();
     int i = 0;
@@ -195,7 +204,7 @@ class OutputDeduplicator {
       Collection<PCollectionNode> duplicates,
       Predicate<String> existingPCollectionIds) {
     Map<String, PCollectionNode> unzippedOutputs =
-        createSyntheticPCollections(duplicates, existingPCollectionIds);
+        createPartialPCollections(duplicates, existingPCollectionIds);
     PTransform pTransform = updateOutputs(transform.getTransform(), unzippedOutputs);
     return PTransformDeduplication.of(
         PipelineNode.pTransform(transform.getId(), pTransform), unzippedOutputs);
@@ -219,7 +228,7 @@ class OutputDeduplicator {
       Collection<PCollectionNode> duplicates,
       Predicate<String> existingPCollectionIds) {
     Map<String, PCollectionNode> unzippedOutputs =
-        createSyntheticPCollections(duplicates, existingPCollectionIds);
+        createPartialPCollections(duplicates, existingPCollectionIds);
     ExecutableStage updatedStage = deduplicateStageOutput(stage, unzippedOutputs);
     return StageDeduplication.of(updatedStage, unzippedOutputs);
   }
@@ -240,7 +249,7 @@ class OutputDeduplicator {
    * Returns a {@link Map} from the ID of a {@link PCollectionNode PCollection} to a {@link
    * PCollectionNode} that contains part of that {@link PCollectionNode PCollection}.
    */
-  private static Map<String, PCollectionNode> createSyntheticPCollections(
+  private static Map<String, PCollectionNode> createPartialPCollections(
       Collection<PCollectionNode> duplicates, Predicate<String> existingPCollectionIds) {
     Map<String, PCollectionNode> unzippedOutputs = new LinkedHashMap<>();
     Predicate<String> existingOrNewIds =
@@ -250,28 +259,30 @@ class OutputDeduplicator {
     for (PCollectionNode duplicateOutput : duplicates) {
       String id = SyntheticNodes.uniqueId(duplicateOutput.getId(), existingOrNewIds);
       PCollection partial = duplicateOutput.getPCollection().toBuilder().setUniqueName(id).build();
-      PCollectionNode former =
+      // Check to make sure there is only one duplicated output with the same id - which ensures we
+      // only introduce one 'partial output' per producer of that output.
+      PCollectionNode alreadyDeduplicated =
           unzippedOutputs.put(duplicateOutput.getId(), PipelineNode.pCollection(id, partial));
-      checkArgument(former == null, "a duplicate should only appear once per stage");
+      checkArgument(alreadyDeduplicated == null, "a duplicate should only appear once per stage");
     }
     return unzippedOutputs;
   }
 
   /**
    * Returns an {@link ExecutableStage} where all of the {@link PCollectionNode PCollections}
-   * matching the original are replaced with the synthetic {@link PCollection} in all references
-   * made within the {@link ExecutableStage}.
+   * matching the original are replaced with the introduced partial {@link PCollection} in all
+   * references made within the {@link ExecutableStage}.
    */
   private static ExecutableStage deduplicateStageOutput(
-      ExecutableStage stage, Map<String, PCollectionNode> originalToSynthetics) {
+      ExecutableStage stage, Map<String, PCollectionNode> originalToPartial) {
     Collection<PTransformNode> updatedTransforms = new ArrayList<>();
     for (PTransformNode transform : stage.getTransforms()) {
-      PTransform updatedTransform = updateOutputs(transform.getTransform(), originalToSynthetics);
+      PTransform updatedTransform = updateOutputs(transform.getTransform(), originalToPartial);
       updatedTransforms.add(PipelineNode.pTransform(transform.getId(), updatedTransform));
     }
     Collection<PCollectionNode> updatedOutputs = new ArrayList<>();
     for (PCollectionNode output : stage.getOutputPCollections()) {
-      updatedOutputs.add(originalToSynthetics.getOrDefault(output.getId(), output));
+      updatedOutputs.add(originalToPartial.getOrDefault(output.getId(), output));
     }
     RunnerApi.Components updatedStageComponents =
         stage
@@ -283,7 +294,7 @@ class OutputDeduplicator {
                     .stream()
                     .collect(Collectors.toMap(PTransformNode::getId, PTransformNode::getTransform)))
             .putAllPcollections(
-                originalToSynthetics
+                originalToPartial
                     .values()
                     .stream()
                     .collect(

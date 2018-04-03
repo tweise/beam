@@ -49,7 +49,7 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class OutputDeduplicatorTest {
   @Test
-  public void noDuplicatesUnchanged() {
+  public void unchangedWithNoDuplicates() {
     /* When all the PCollections are produced by only one transform or stage, the result should be
      * empty//identical to the input.
      */
