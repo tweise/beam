@@ -267,7 +267,6 @@ public class FlinkBatchPortablePipelineTranslator
     FlinkExecutableStageFunction<InputT> function =
         new FlinkExecutableStageFunction<>(
             stagePayload,
-            components,
             stagePayload.getEnvironment(),
             PipelineOptionsTranslation.toProto(context.getPipelineOptions()),
             outputMap);

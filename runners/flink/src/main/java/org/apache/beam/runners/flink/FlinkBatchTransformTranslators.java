@@ -22,6 +22,7 @@ import static com.google.common.base.Preconditions.checkState;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import java.io.IOException;
@@ -732,10 +733,9 @@ class FlinkBatchTransformTranslators {
       FlinkExecutableStageFunction<InputT> function =
           new FlinkExecutableStageFunction<>(
               stagePayload,
-              context.getComponents(),
               stagePayload.getEnvironment(),
               PipelineOptionsTranslation.toProto(context.getPipelineOptions()),
-              null);
+              ImmutableMap.of());
       DataSet<WindowedValue<InputT>> inputDataSet =
           context.getInputDataSet(context.getInput(transform));
       DataSet<RawUnionValue> taggedDataset =

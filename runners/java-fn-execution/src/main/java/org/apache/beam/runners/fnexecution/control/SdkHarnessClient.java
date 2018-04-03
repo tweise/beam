@@ -21,17 +21,22 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 import com.google.auto.value.AutoValue;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.InstructionResponse;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.ProcessBundleDescriptor;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.ProcessBundleRequest;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.RegisterResponse;
-import org.apache.beam.model.pipeline.v1.Endpoints;
+import org.apache.beam.model.pipeline.v1.RunnerApi;
+import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
+import org.apache.beam.model.pipeline.v1.RunnerApi.ParDoPayload;
+import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.fnexecution.data.FnDataService;
 import org.apache.beam.runners.fnexecution.data.RemoteInputDestination;
 import org.apache.beam.runners.fnexecution.state.StateDelegator;
@@ -343,11 +348,20 @@ public class SdkHarnessClient implements AutoCloseable {
       BeamFnApi.ProcessBundleDescriptor descriptor,
       RemoteInputDestination<WindowedValue<T>> remoteInputDesination) {
     checkState(
-        !descriptor.hasStateApiServiceDescriptor(),
-        "The %s cannot support a %s containing a state %s.",
+        !usesSideInputs(descriptor),
+        "The %s cannot support a %s using side inputs",
         BundleProcessor.class.getSimpleName(),
-        BeamFnApi.ProcessBundleDescriptor.class.getSimpleName(),
-        Endpoints.ApiServiceDescriptor.class.getSimpleName());
+        ProcessBundleDescriptor.class.getSimpleName());
+    checkState(
+        !usesState(descriptor),
+        "The %s cannot support a %s using user state",
+        BundleProcessor.class.getSimpleName(),
+        ProcessBundleDescriptor.class.getSimpleName());
+    checkState(
+        !usesRemoteReferences(descriptor),
+        "The %s cannot support a %s using remote references",
+        BundleProcessor.class.getSimpleName(),
+        ProcessBundleDescriptor.class.getSimpleName());
     return getProcessor(descriptor, remoteInputDesination, NoOpStateDelegator.INSTANCE);
   }
 
@@ -459,5 +473,38 @@ public class SdkHarnessClient implements AutoCloseable {
 
     public abstract Coder<T> getCoder();
     public abstract FnDataReceiver<T> getReceiver();
+  }
+
+  private static boolean usesSideInputs(ProcessBundleDescriptor descriptor) {
+    return anyTransformMatches(descriptor, parDo -> parDo.getSideInputsCount() > 0);
+  }
+
+  private static boolean usesState(ProcessBundleDescriptor descriptor) {
+    return anyTransformMatches(descriptor, parDo -> parDo.getStateSpecsCount() > 0);
+  }
+
+  private static boolean usesRemoteReferences(ProcessBundleDescriptor descriptor) {
+    // TODO: How do you determine whether a transform uses remote references?
+    return false;
+  }
+
+  private static boolean anyTransformMatches(ProcessBundleDescriptor descriptor,
+      Predicate<ParDoPayload> predicate) {
+    for (PTransform transform : descriptor.getTransformsMap().values()) {
+      if (transform.hasSpec()) {
+        RunnerApi.FunctionSpec spec = transform.getSpec();
+        if (PTransformTranslation.PAR_DO_TRANSFORM_URN.equals(spec.getUrn())) {
+          try {
+            ParDoPayload parDo = ParDoPayload.parseFrom(spec.getPayload());
+            if (predicate.test(parDo)) {
+              return true;
+            }
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        }
+      }
+    }
+    return false;
   }
 }
