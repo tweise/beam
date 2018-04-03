@@ -18,6 +18,7 @@
 
 package org.apache.beam.runners.core.construction.graph;
 
+import static com.google.common.collect.Iterables.getOnlyElement;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -477,8 +478,8 @@ public class GreedyPipelineFuserTest {
 
     PTransformNode flattenNode = null;
     for (PTransformNode runnerTransform : fused.getRunnerExecutedTransforms()) {
-      if (!(runnerTransform.getId().equals("pyImpulse")
-          || runnerTransform.getId().equals("goImpulse"))) {
+      if (getOnlyElement(runnerTransform.getTransform().getOutputsMap().values())
+          .equals("flatten.out")) {
         flattenNode = runnerTransform;
       }
     }
