@@ -18,10 +18,16 @@
 
 package org.apache.beam.fn.harness;
 
+import com.fasterxml.jackson.core.TreeNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.CaseFormat;
+import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.TextFormat;
 import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import org.apache.beam.fn.harness.control.BeamFnControlClient;
 import org.apache.beam.fn.harness.control.ProcessBundleHandler;
 import org.apache.beam.fn.harness.control.RegisterHandler;
@@ -73,15 +79,13 @@ public class FnHarness {
   }
 
   public static void main(String[] args) throws Exception {
+    String optionsString = System.getenv(PIPELINE_OPTIONS);
     System.out.format("SDK Fn Harness started%n");
     System.out.format("Logging location %s%n", System.getenv(LOGGING_API_SERVICE_DESCRIPTOR));
     System.out.format("Control location %s%n", System.getenv(CONTROL_API_SERVICE_DESCRIPTOR));
-    System.out.format("Pipeline options %s%n", System.getenv(PIPELINE_OPTIONS));
+    System.out.format("Pipeline options %s%n", optionsString);
 
-    ObjectMapper objectMapper = new ObjectMapper().registerModules(
-        ObjectMapper.findModules(ReflectHelpers.findClassLoader()));
-    PipelineOptions options = objectMapper.readValue(
-        System.getenv(PIPELINE_OPTIONS), PipelineOptions.class);
+    PipelineOptions options = optionsFromJson(optionsString);
 
     Endpoints.ApiServiceDescriptor loggingApiServiceDescriptor =
         getApiServiceDescriptor(LOGGING_API_SERVICE_DESCRIPTOR);
@@ -159,5 +163,27 @@ public class FnHarness {
     } finally {
       System.out.println("Shutting SDK harness down.");
     }
+  }
+
+  // TODO: JSON deserialization was copied from PipelineOptionsTranslation. Move this into a shared
+  // utility.
+  private static PipelineOptions optionsFromJson(String json) throws Exception {
+    ObjectMapper objectMapper = new ObjectMapper().registerModules(
+        ObjectMapper.findModules(ReflectHelpers.findClassLoader()));
+    Map<String, TreeNode> mapWithoutUrns = new HashMap<String, TreeNode>();
+    TreeNode rootOptions = objectMapper.readTree(json);
+    Iterator<String> optionsKeys = rootOptions.fieldNames();
+    while (optionsKeys.hasNext()) {
+      String optionKey = optionsKeys.next();
+      TreeNode optionValue = rootOptions.get(optionKey);
+      mapWithoutUrns.put(
+          CaseFormat.LOWER_UNDERSCORE.to(
+              CaseFormat.LOWER_CAMEL,
+              optionKey.substring("beam:option:".length(), optionKey.length() - ":v1".length())),
+          optionValue);
+    }
+    return objectMapper.readValue(
+        objectMapper.writeValueAsString(ImmutableMap.of("options", mapWithoutUrns)),
+        PipelineOptions.class);
   }
 }
