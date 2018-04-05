@@ -21,11 +21,13 @@ import static com.google.common.base.Preconditions.checkState;
 import static org.apache.beam.runners.core.construction.PipelineResources.detectClassPathResourcesToStage;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.io.BaseEncoding;
 import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -40,6 +42,7 @@ import org.apache.beam.model.jobmanagement.v1.JobServiceGrpc.JobServiceBlockingS
 import org.apache.beam.model.pipeline.v1.Endpoints;
 import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.runners.core.construction.ArtifactServiceStager;
+import org.apache.beam.runners.core.construction.ArtifactServiceStager.FileToStage;
 import org.apache.beam.runners.core.construction.JavaReadViaImpulse;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
@@ -166,7 +169,9 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
           ArtifactServiceStager.overChannel(artifactChannel.get());
       LOG.info("Actual files staged {}", filesToStage);
       stagingToken =
-          stager.stage(filesToStage.stream().map(File::new).collect(Collectors.toList()));
+          stager.stage(filesToStage.stream()
+              .map(PortableRunner::createStagingFile)
+              .collect(Collectors.toList()));
     } catch (CloseableResource.CloseException e) {
       LOG.warn("Error closing artifact staging channel", e);
       // CloseExceptions should only be thrown while closing the channel.
@@ -218,6 +223,13 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
   @Override
   public String toString() {
     return "PortableRunner#" + hashCode();
+  }
+
+  private static FileToStage createStagingFile(String path) {
+    // HACK: Encode the path name ourselves because the local artifact staging service currently
+    // assumes artifact names correspond to a flat directory.
+    String encodedPath = BaseEncoding.base64Url().encode(path.getBytes(StandardCharsets.UTF_8));
+    return FileToStage.of(new File(path), encodedPath);
   }
 
 }
