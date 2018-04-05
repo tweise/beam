@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.ArtifactMetadata;
+import org.apache.beam.runners.core.construction.ArtifactServiceStager.FileToStage;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -87,14 +88,14 @@ public class ArtifactServiceStagerTest {
       contentChannel.write(ByteBuffer.wrap(content));
     }
 
-    stager.stage(Collections.singleton(file));
+    stager.stage(Collections.singleton(FileToStage.of(file, file.getName())));
 
     assertThat(service.getStagedArtifacts().entrySet(), hasSize(1));
     byte[] stagedContent = Iterables.getOnlyElement(service.getStagedArtifacts().values());
     assertThat(stagedContent, equalTo(content));
 
     ArtifactMetadata staged = service.getManifest().getArtifact(0);
-    assertThat(staged.getName(), equalTo(ArtifactServiceStager.escapePath(file.getPath())));
+    assertThat(staged.getName(), equalTo(file.getName()));
     byte[] manifestMd5 = BaseEncoding.base64().decode(staged.getMd5());
     assertArrayEquals(contentMd5, manifestMd5);
 
@@ -122,7 +123,10 @@ public class ArtifactServiceStagerTest {
       contentChannel.write(ByteBuffer.wrap(thirdContent));
     }
 
-    stager.stage(ImmutableList.of(file, otherFile, thirdFile));
+    stager.stage(ImmutableList.of(
+        FileToStage.of(file, file.getName()),
+        FileToStage.of(otherFile, otherFile.getName()),
+        FileToStage.of(thirdFile, thirdFile.getName())));
 
     assertThat(service.getManifest().getArtifactCount(), equalTo(3));
     assertThat(service.getStagedArtifacts().entrySet(), hasSize(3));

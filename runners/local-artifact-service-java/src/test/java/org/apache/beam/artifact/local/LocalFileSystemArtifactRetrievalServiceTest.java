@@ -48,6 +48,7 @@ import org.apache.beam.model.jobmanagement.v1.ArtifactApi.GetManifestResponse;
 import org.apache.beam.model.jobmanagement.v1.ArtifactApi.Manifest;
 import org.apache.beam.model.jobmanagement.v1.ArtifactRetrievalServiceGrpc;
 import org.apache.beam.runners.core.construction.ArtifactServiceStager;
+import org.apache.beam.runners.core.construction.ArtifactServiceStager.FileToStage;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.InProcessServerFactory;
 import org.apache.beam.runners.fnexecution.ServerFactory;
@@ -186,11 +187,11 @@ public class LocalFileSystemArtifactRetrievalServiceTest {
   }
 
   private void stageAndCreateRetrievalService(Map<String, byte[]> artifacts) throws Exception {
-    List<File> artifactFiles = new ArrayList<>();
+    List<FileToStage> artifactFiles = new ArrayList<>();
     for (Map.Entry<String, byte[]> artifact : artifacts.entrySet()) {
       File artifactFile = tmp.newFile(artifact.getKey());
       new FileOutputStream(artifactFile).getChannel().write(ByteBuffer.wrap(artifact.getValue()));
-      artifactFiles.add(artifactFile);
+      artifactFiles.add(FileToStage.of(artifactFile, artifactFile.getName()));
     }
 
     ArtifactServiceStager stager =
