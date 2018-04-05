@@ -21,13 +21,11 @@ import static com.google.common.base.Preconditions.checkState;
 import static org.apache.beam.runners.core.construction.PipelineResources.detectClassPathResourcesToStage;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.io.BaseEncoding;
 import com.google.protobuf.ByteString;
 import io.grpc.ManagedChannel;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -228,8 +226,34 @@ public class PortableRunner extends PipelineRunner<PipelineResult> {
   private static FileToStage createStagingFile(String path) {
     // HACK: Encode the path name ourselves because the local artifact staging service currently
     // assumes artifact names correspond to a flat directory.
-    String encodedPath = BaseEncoding.base64Url().encode(path.getBytes(StandardCharsets.UTF_8));
+    //String encodedPath = BaseEncoding.base64Url().encode(path.getBytes(StandardCharsets.UTF_8));
+    String encodedPath = escapePath(path);
     return FileToStage.of(new File(path), encodedPath);
+  }
+
+  private static String escapePath(String path) {
+    StringBuilder result = new StringBuilder();
+    new StringBuilder(2 * path.length());
+    for (int i = 0; i < path.length(); i++) {
+      char c = path.charAt(i);
+      switch (c) {
+        case '_':
+          result.append("__");
+          break;
+        case '/':
+          result.append("_.");
+          break;
+        case '\\':
+          result.append("._");
+          break;
+        case '.':
+          result.append("..");
+          break;
+        default:
+          result.append(c);
+      }
+    }
+    return result.toString();
   }
 
 }
