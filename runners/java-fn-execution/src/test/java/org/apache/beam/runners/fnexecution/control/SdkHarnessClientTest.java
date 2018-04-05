@@ -49,6 +49,7 @@ import org.apache.beam.model.pipeline.v1.Endpoints.ApiServiceDescriptor;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.PTransform;
 import org.apache.beam.runners.core.construction.CoderTranslation;
+import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PipelineTranslation;
 import org.apache.beam.runners.fnexecution.InProcessSdkHarness;
 import org.apache.beam.runners.fnexecution.control.SdkHarnessClient.ActiveBundle;
@@ -136,6 +137,15 @@ public class SdkHarnessClientTest {
 
     ProcessBundleDescriptor descriptor = ProcessBundleDescriptor.newBuilder()
         .setId("test")
+        .putTransforms("fooTransform", PTransform.newBuilder()
+            .setSpec(RunnerApi.FunctionSpec.newBuilder()
+                .setUrn(PTransformTranslation.PAR_DO_TRANSFORM_URN)
+                .setPayload(RunnerApi.ParDoPayload.newBuilder()
+                    .putStateSpecs("fooState", RunnerApi.StateSpec.getDefaultInstance())
+                    .build()
+                    .toByteString())
+                .build())
+            .build())
         .setStateApiServiceDescriptor(ApiServiceDescriptor.newBuilder().setUrl("foo"))
         .build();
 
@@ -145,7 +155,7 @@ public class SdkHarnessClientTest {
             Target.getDefaultInstance());
 
     thrown.expect(IllegalStateException.class);
-    thrown.expectMessage("containing a state");
+    thrown.expectMessage("using user state");
     BundleProcessor<?> processor = sdkHarnessClient.getProcessor(descriptor, remoteInputs);
   }
 
