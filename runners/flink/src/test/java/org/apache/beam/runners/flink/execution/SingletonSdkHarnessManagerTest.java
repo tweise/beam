@@ -11,6 +11,7 @@ import org.apache.beam.model.pipeline.v1.RunnerApi.Environment;
 import org.apache.beam.runners.fnexecution.ServerFactory;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactSource;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -56,6 +57,8 @@ public class SingletonSdkHarnessManagerTest {
     assertEquals(session, environmentSession);
   }
 
+  // TODO: Reenable this when/if we actually want enforce session singletons.
+  @Ignore
   @Test
   public void testGetSessionCreatesJobResourceManagerOnlyOnFirstRun() throws Exception {
     // get session and check that create was called once
