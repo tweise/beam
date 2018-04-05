@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.model.fnexecution.v1.ProvisionApi.ProvisionInfo;
+import org.apache.beam.runners.fnexecution.GrpcContextHeaderAccessorProvider;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
 import org.apache.beam.runners.fnexecution.ServerFactory;
 import org.apache.beam.runners.fnexecution.artifact.ArtifactRetrievalService;
@@ -65,7 +66,8 @@ public class JobResourceFactory {
   public GrpcFnServer<FnApiControlClientPoolService> controlService(
       ThrowingConsumer<InstructionRequestHandler> clientPool) throws IOException {
     FnApiControlClientPoolService controlService =
-        FnApiControlClientPoolService.offeringClientsToPool(clientPool);
+        FnApiControlClientPoolService.offeringClientsToPool(clientPool,
+            GrpcContextHeaderAccessorProvider.getHeaderAccessor());
     return GrpcFnServer.allocatePortAndCreateFor(controlService, serverFactory);
   }
 

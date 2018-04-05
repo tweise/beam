@@ -70,9 +70,11 @@ public class InProcessSdkHarness extends ExternalResource implements TestRule {
   protected void before() throws Exception {
     InProcessServerFactory serverFactory = InProcessServerFactory.create();
     executor = Executors.newCachedThreadPool(new ThreadFactoryBuilder().setDaemon(true).build());
-    ControlClientPool clientPool = QueueControlClientPool.createSynchronous();
+    ControlClientPool<InstructionRequestHandler> clientPool =
+        QueueControlClientPool.createSynchronous();
     FnApiControlClientPoolService clientPoolService =
-        FnApiControlClientPoolService.offeringClientsToPool(clientPool.getSink());
+        FnApiControlClientPoolService.offeringClientsToPool(
+            clientPool.getSink(), GrpcContextHeaderAccessorProvider.getHeaderAccessor());
 
     loggingServer =
         GrpcFnServer.allocatePortAndCreateFor(

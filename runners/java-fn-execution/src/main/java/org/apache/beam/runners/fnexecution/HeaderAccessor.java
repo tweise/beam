@@ -16,24 +16,10 @@
  * limitations under the License.
  */
 
-import common_job_properties
+package org.apache.beam.runners.fnexecution;
 
-// This is the Java Jenkins job which runs the Beam code health checks.
-mavenJob('beam_Java_CodeHealth') {
-  description('Runs Java code health checks. Meant to be run as part of a pipeline.')
-
-  // Set standard properties for a job which is part of a pipeline.
-  common_job_properties.setPipelineJobProperties(delegate, 30, "Java Code Health")
-  // This job runs downstream of the beam_Java_Build job and gets artifacts from that job.
-  common_job_properties.setPipelineDownstreamJobProperties(delegate, 'beam_Java_Build')
-
-  args = [
-    '-B',
-    '-e',
-    "-pl '!sdks/python'",
-    'checkstyle:check',
-    'findbugs:check',
-    'org.apache.rat:apache-rat-plugin:check',
-  ]
-  goals(args.join(' '))
+/** Interface to access headers in the client request. */
+public interface HeaderAccessor {
+  /** This method should be called from the request method. */
+  String getSdkWorkerId();
 }

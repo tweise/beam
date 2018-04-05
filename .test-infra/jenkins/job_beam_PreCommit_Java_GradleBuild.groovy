@@ -44,11 +44,13 @@ job('beam_PreCommit_Java_GradleBuild') {
     '--continue',
     // Until we verify the build cache is working appropriately, force rerunning all tasks
     '--rerun-tasks',
+    // Specify maven home on Jenkins
+    '-Pmaven_home=/home/jenkins/tools/maven/apache-maven-3.5.2'
   ]
 
   def gradle_command_line = './gradlew ' + gradle_switches.join(' ') + ' :javaPreCommit'
   // Sets that this is a PreCommit job.
-  common_job_properties.setPreCommit(delegate, gradle_command_line, 'Run Java Gradle PreCommit')
+  common_job_properties.setPreCommit(delegate, gradle_command_line, 'Run Java PreCommit')
   steps {
     gradle {
       rootBuildScriptDir(common_job_properties.checkoutDir)

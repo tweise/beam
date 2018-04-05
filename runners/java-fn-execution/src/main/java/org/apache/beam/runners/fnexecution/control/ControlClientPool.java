@@ -21,9 +21,9 @@ import org.apache.beam.fn.harness.fn.ThrowingConsumer;
 import org.apache.beam.sdk.util.ThrowingSupplier;
 
 /** Control client pool that exposes a source and sink of control clients. */
-public interface ControlClientPool {
+public interface ControlClientPool<T extends InstructionRequestHandler> {
   /** Source of control clients. */
-  ThrowingSupplier<InstructionRequestHandler> getSource();
+  ThrowingSupplier<T> getSource();
   /** Sink for control clients. */
-  ThrowingConsumer<InstructionRequestHandler> getSink();
+  ThrowingConsumer<T> getSink();
 }
