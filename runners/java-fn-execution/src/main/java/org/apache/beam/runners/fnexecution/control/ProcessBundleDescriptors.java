@@ -215,20 +215,15 @@ public class ProcessBundleDescriptors {
 
   private static Coder<WindowedValue<?>> instantiateWireCoder(
       RemoteGrpcPort port, Map<String, RunnerApi.Coder> components) throws IOException {
-//    MessageWithComponents byteArrayCoder =
-//        LengthPrefixUnknownCoders.forCoder(
-//            port.getCoderId(), Components.newBuilder().putAllCoders(components).build(), true);
-//    Coder<?> javaCoder =
-//        CoderTranslation.fromProto(
-//            byteArrayCoder.getCoder(),
-//            RehydratedComponents.forComponents(byteArrayCoder.getComponents()));
-    // TODO: revert this once we only see bytes on the Flink side, i.e. when it's okay
-    // to use byte coders everywhere
+    MessageWithComponents byteArrayCoder =
+        LengthPrefixUnknownCoders.forCoder(
+            port.getCoderId(), Components.newBuilder().putAllCoders(components).build(), true);
+    // TODO: This appears to work without making a specific switch to bytes on the Flink runner
+    // side. It's possible that we got the fix for free after switching to proto based translation.
     Coder<?> javaCoder =
         CoderTranslation.fromProto(
-            components.get(port.getCoderId()),
-            RehydratedComponents.forComponents(
-                Components.newBuilder().putAllCoders(components).build()));
+            byteArrayCoder.getCoder(),
+            RehydratedComponents.forComponents(byteArrayCoder.getComponents()));
     checkArgument(
         javaCoder instanceof WindowedValue.FullWindowedValueCoder,
         "Unexpected Deserialized %s type, expected %s, got %s",
