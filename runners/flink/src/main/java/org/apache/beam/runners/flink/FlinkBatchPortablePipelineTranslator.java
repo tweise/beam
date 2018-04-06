@@ -18,6 +18,7 @@
 package org.apache.beam.runners.flink;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.beam.runners.core.construction.UrnUtils.validateCommonUrn;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.model.pipeline.v1.RunnerApi.ExecutableStagePayload.SideInputId;
@@ -53,6 +55,7 @@ import org.apache.beam.runners.flink.translation.functions.FlinkReduceFunction;
 import org.apache.beam.runners.flink.translation.types.CoderTypeInformation;
 import org.apache.beam.runners.flink.translation.types.KvKeySelector;
 import org.apache.beam.runners.flink.translation.wrappers.ImpulseInputFormat;
+import org.apache.beam.runners.fnexecution.graph.LengthPrefixUnknownCoders;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
 import org.apache.beam.sdk.coders.CoderRegistry;
@@ -67,6 +70,7 @@ import org.apache.beam.sdk.transforms.join.UnionCoder;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
 import org.apache.beam.sdk.util.WindowedValue;
+import org.apache.beam.sdk.util.WindowedValue.WindowedValueCoder;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.WindowingStrategy;
@@ -236,21 +240,22 @@ public class FlinkBatchPortablePipelineTranslator
         RehydratedComponents.forComponents(components);
     Map<String, Coder<WindowedValue<?>>> outputCoders = Maps.newHashMap();
     for (String collectionId : new TreeMap<>(outputMap.inverse()).values()) {
-      RunnerApi.PCollection coll = components.getPcollectionsOrThrow(collectionId);
-      RunnerApi.Coder coderProto = components.getCodersOrThrow(coll.getCoderId());
-      Coder<WindowedValue<?>> windowCoder;
-      try {
-        Coder elementCoder = CoderTranslation.fromProto(coderProto, rehydratedComponents);
-        RunnerApi.WindowingStrategy windowProto = components.getWindowingStrategiesOrThrow(
-            coll.getWindowingStrategyId());
-        WindowingStrategy<Object, BoundedWindow> windowingStrategy =
-            (WindowingStrategy<Object, BoundedWindow>)
-            WindowingStrategyTranslation.fromProto(windowProto, rehydratedComponents);
-        windowCoder = WindowedValue.getFullCoder(elementCoder,
-            windowingStrategy.getWindowFn().windowCoder());
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
+      //RunnerApi.PCollection coll = components.getPcollectionsOrThrow(collectionId);
+      //RunnerApi.Coder coderProto = components.getCodersOrThrow(coll.getCoderId());
+      //Coder<WindowedValue<?>> windowCoder;
+      //try {
+      //  Coder elementCoder = CoderTranslation.fromProto(coderProto, rehydratedComponents);
+      //  RunnerApi.WindowingStrategy windowProto = components.getWindowingStrategiesOrThrow(
+      //      coll.getWindowingStrategyId());
+      //  WindowingStrategy<Object, BoundedWindow> windowingStrategy =
+      //      (WindowingStrategy<Object, BoundedWindow>)
+      //      WindowingStrategyTranslation.fromProto(windowProto, rehydratedComponents);
+      //  windowCoder = WindowedValue.getFullCoder(elementCoder,
+      //      windowingStrategy.getWindowFn().windowCoder());
+      //} catch (IOException e) {
+      //  throw new RuntimeException(e);
+      //}
+      Coder<WindowedValue<?>> windowCoder = (Coder) instantiateCoder(collectionId, components);
       outputCoders.put(collectionId, windowCoder);
       unionCoders.add(windowCoder);
     }
@@ -357,10 +362,6 @@ public class FlinkBatchPortablePipelineTranslator
         Iterables.getOnlyElement(pTransform.getInputsMap().values());
     DataSet<WindowedValue<KV<K, V>>> inputDataSet =
         context.getDataSetOrThrow(inputPCollectionId);
-    RunnerApi.Coder inputCoderProto =
-        pipeline.getComponents().getCodersOrThrow(
-            pipeline.getComponents().getPcollectionsOrThrow(
-                inputPCollectionId).getCoderId());
     RunnerApi.WindowingStrategy windowingStrategyProto =
         pipeline.getComponents().getWindowingStrategiesOrThrow(
             pipeline.getComponents().getPcollectionsOrThrow(
@@ -368,17 +369,6 @@ public class FlinkBatchPortablePipelineTranslator
 
     RehydratedComponents rehydratedComponents =
         RehydratedComponents.forComponents(pipeline.getComponents());
-    KvCoder<K, V> inputCoder;
-    try {
-      inputCoder = (KvCoder<K, V>) CoderTranslation.fromProto(
-          inputCoderProto,
-          rehydratedComponents);
-    } catch (IOException e) {
-      throw new IllegalStateException(
-          String.format("Unable to hydrate GroupByKey input coder %s.",
-              inputCoderProto),
-          e);
-    }
 
     WindowingStrategy<Object, BoundedWindow> windowingStrategy;
     try {
@@ -393,19 +383,25 @@ public class FlinkBatchPortablePipelineTranslator
           e);
     }
 
+    WindowedValueCoder<KV<K, V>> inputCoder = instantiateCoder(inputPCollectionId,
+        pipeline.getComponents());
+
+    KvCoder<K, V> inputElementCoder = (KvCoder<K, V>) inputCoder.getValueCoder();
+
     Concatenate combineFn = new Concatenate<>();
-    Coder<List<V>> accumulatorCoder = combineFn.getAccumulatorCoder(
-          CoderRegistry.createDefault(),
-          inputCoder.getValueCoder());
+    Coder<List<V>> accumulatorCoder =
+        combineFn.getAccumulatorCoder(CoderRegistry.createDefault(),
+            inputElementCoder.getValueCoder());
+
+    Coder<WindowedValue<KV<K, List<V>>>> outputCoder =
+        WindowedValue.getFullCoder(KvCoder.of(inputElementCoder.getKeyCoder(), accumulatorCoder),
+            windowingStrategy.getWindowFn().windowCoder());
 
     TypeInformation<WindowedValue<KV<K, List<V>>>> partialReduceTypeInfo =
-        new CoderTypeInformation<>(
-            WindowedValue.getFullCoder(
-                KvCoder.of(inputCoder.getKeyCoder(), accumulatorCoder),
-                windowingStrategy.getWindowFn().windowCoder()));
+        new CoderTypeInformation<>(outputCoder);
 
     Grouping<WindowedValue<KV<K, V>>> inputGrouping =
-        inputDataSet.groupBy(new KvKeySelector<>(inputCoder.getKeyCoder()));
+        inputDataSet.groupBy(new KvKeySelector<>(inputElementCoder.getKeyCoder()));
 
     FlinkPartialReduceFunction<K, V, List<V>, ?> partialReduceFunction =
         new FlinkPartialReduceFunction<>(
@@ -426,7 +422,7 @@ public class FlinkBatchPortablePipelineTranslator
             "GroupCombine: " + pTransform.getUniqueName());
 
     Grouping<WindowedValue<KV<K, List<V>>>> intermediateGrouping =
-        groupCombine.groupBy(new KvKeySelector<>(inputCoder.getKeyCoder()));
+        groupCombine.groupBy(new KvKeySelector<>(inputElementCoder.getKeyCoder()));
 
     // Fully reduce the values and create output format VO
     GroupReduceOperator<
@@ -541,6 +537,56 @@ public class FlinkBatchPortablePipelineTranslator
       outputIndex++;
     }
     return builder.build();
+  }
+
+  private static <T> WindowedValueCoder<T> instantiateCoder(String collectionId,
+      RunnerApi.Components components) {
+    RunnerApi.PCollection collection = components.getPcollectionsOrThrow(collectionId);
+    String elementCoderId = collection.getCoderId();
+    String windowingStrategyId = collection.getWindowingStrategyId();
+    String windowCoderId =
+        components.getWindowingStrategiesOrThrow(windowingStrategyId).getWindowCoderId();
+    // TODO: This is the wrong place to hand-construct a coder.
+    RunnerApi.Coder windowedValueCoder =
+        RunnerApi.Coder.newBuilder()
+            .addComponentCoderIds(elementCoderId)
+            .addComponentCoderIds(windowCoderId)
+            .setSpec(
+                RunnerApi.SdkFunctionSpec.newBuilder()
+                    .setSpec(
+                        RunnerApi.FunctionSpec.newBuilder()
+                            .setUrn(validateCommonUrn("beam:coder:windowed_value:v1"))))
+            .build();
+    // Add the original WindowedValue<T, W> coder to the components;
+    String windowedValueId =
+        uniquifyId(String.format("fn/wire/%s", collectionId), components::containsCoders);
+
+    // Instantiate the wire coder by length-prefixing unknown coders.
+    RunnerApi.MessageWithComponents protoCoder = LengthPrefixUnknownCoders.forCoder(
+        windowedValueId,
+        components.toBuilder().putCoders(windowedValueId, windowedValueCoder).build(),
+        true /* replace with byte array coders */);
+    Coder<?> javaCoder;
+    try {
+      javaCoder = CoderTranslation.fromProto(
+          protoCoder.getCoder(),
+          RehydratedComponents.forComponents(protoCoder.getComponents()));
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    checkArgument(javaCoder instanceof WindowedValueCoder);
+    return (WindowedValueCoder<T>) javaCoder;
+  }
+
+  private static String uniquifyId(String idBase, Predicate<String> idUsed) {
+    if (!idUsed.test(idBase)) {
+      return idBase;
+    }
+    int i = 0;
+    while (idUsed.test(String.format("%s_%s", idBase, i))) {
+      i++;
+    }
+    return String.format("%s_%s", idBase, i);
   }
 
 }

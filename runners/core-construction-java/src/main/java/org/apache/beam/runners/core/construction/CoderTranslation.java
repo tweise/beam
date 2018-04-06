@@ -87,9 +87,6 @@ public class CoderTranslation {
 
   public static RunnerApi.Coder toProto(
       Coder<?> coder, SdkComponents components) throws IOException {
-    if (coder instanceof FooCoder) {
-      return ((FooCoder) coder).getOriginalCoder();
-    }
     if (KNOWN_CODER_URNS.containsKey(coder.getClass())) {
       return toKnownCoder(coder, components);
     }
@@ -152,11 +149,8 @@ public class CoderTranslation {
       coderComponents.add(innerCoder);
     }
     Class<? extends Coder> coderType = KNOWN_CODER_URNS.inverse().get(coderUrn);
+    // TODO: Add check for coderType != null?
     CoderTranslator<?> translator = KNOWN_TRANSLATORS.get(coderType);
-    if (translator == null) {
-      // HACK: Assume unknown coders are SDK coders that should be length-prefixed.
-      return new FooCoder(coder);
-    }
     checkArgument(
         translator != null,
         "Unknown Coder URN %s. Known URNs: %s",
@@ -172,68 +166,4 @@ public class CoderTranslation {
             protoCoder.getSpec().getSpec().getPayload().toByteArray(), "Custom Coder Bytes");
   }
 
-  /**
-   * Convert a {@link RunnerApi.Coder} into a java {@link Coder}. If there is a registered {@link
-   * CoderTranslator} for the {@link RunnerApi.Coder}, deserialize the coder using that {@link
-   * CoderTranslator}. Otherwise, return a {@link ByteArrayCoder}.
-   *
-   * <p>Component {@link RunnerApi.Coder coders} are recursively deserialized with this method.
-   *
-   * <p>Length prefix coders are not added or removed by this method.
-   */
-  public static Coder<?> knownCoderOrByteArrayCoder(
-      RunnerApi.Coder coder, Map<String, RunnerApi.Coder> components) {
-    String coderUrn = coder.getSpec().getSpec().getUrn();
-    Class<? extends Coder> coderType = KNOWN_CODER_URNS.inverse().get(coderUrn);
-    CoderTranslator<?> translator = KNOWN_TRANSLATORS.get(coderType);
-    if (translator == null) {
-      return ByteArrayCoder.of();
-    }
-    List<Coder<?>> coderComponents = new LinkedList<>();
-    for (String componentId : coder.getComponentCoderIdsList()) {
-      RunnerApi.Coder componentCoderProto = components.get(componentId);
-      checkArgument(
-          componentCoderProto != null,
-          "Unknown Component %s %s",
-          Coder.class.getSimpleName(),
-          componentId);
-      Coder<?> innerCoder = knownCoderOrByteArrayCoder(componentCoderProto, components);
-      coderComponents.add(innerCoder);
-    }
-    return translator.fromComponents(
-        coderComponents, coder.getSpec().getSpec().getPayload().toByteArray());
-  }
-
-  private static class FooCoder extends Coder<byte[]> {
-    private final Coder<byte[]> coder = LengthPrefixCoder.of(ByteArrayCoder.of());
-    private final RunnerApi.Coder originalCoder;
-
-    FooCoder(RunnerApi.Coder originalCoder) {
-      this.originalCoder = originalCoder;
-    }
-
-    RunnerApi.Coder getOriginalCoder() {
-      return originalCoder;
-    }
-
-    @Override
-    public void encode(byte[] value, OutputStream outStream) throws CoderException, IOException {
-      coder.encode(value, outStream);
-    }
-
-    @Override
-    public byte[] decode(InputStream inStream) throws CoderException, IOException {
-      return coder.decode(inStream);
-    }
-
-    @Override
-    public List<? extends Coder<?>> getCoderArguments() {
-      return ImmutableList.of();
-    }
-
-    @Override
-    public void verifyDeterministic() throws NonDeterministicException {
-
-    }
-  }
 }

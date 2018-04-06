@@ -151,31 +151,6 @@ public class CoderTranslationTest {
       }
     }
 
-    @Test
-    public void testToProtoFromKnownCoderOrByteArray() throws IOException {
-      SdkComponents componentsBuilder = SdkComponents.create();
-      RunnerApi.Coder coderProto = CoderTranslation.toProto(coder, componentsBuilder);
-
-      Components encodedComponents = componentsBuilder.toComponents();
-      Coder<?> decodedCoder =
-          CoderTranslation.knownCoderOrByteArrayCoder(coderProto, encodedComponents.getCodersMap());
-
-      assertUnknownCodersByteArray(decodedCoder);
-    }
-
-    private <T> void assertUnknownCodersByteArray(Coder<T> coder) {
-      if (KNOWN_CODERS
-          .stream()
-          .map(Coder::getClass)
-          .anyMatch(clazz -> clazz.equals(coder.getClass()))) {
-        for (Coder<?> component : coder.getCoderArguments()) {
-          assertUnknownCodersByteArray(component);
-        }
-      } else {
-        assertThat(coder, Matchers.isA((Class) ByteArrayCoder.class));
-      }
-    }
-
     static class Record implements Serializable {}
 
     private static class RecordCoder extends AtomicCoder<Record> {
