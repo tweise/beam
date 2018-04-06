@@ -242,6 +242,12 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     public void finishBundle() {
 
     }
+
+    @Override
+    public DoFn<InputT, OutputT> getFn() {
+      // TODO: What should we do here? This may break streaming runner execution.
+      throw new UnsupportedOperationException();
+    }
   }
 
   private static class NoOpDoFn<InputT, OutputT> extends DoFn<InputT, OutputT> {
