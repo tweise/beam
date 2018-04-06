@@ -72,16 +72,19 @@ public class ExecutableStageMatcher extends TypeSafeMatcher<ExecutableStage> {
 
   public ExecutableStageMatcher withOutputs(Matcher<String>... pCollections) {
     return new ExecutableStageMatcher(
-        inputPCollectionId, sideInputIds, Matchers.containsInAnyOrder(pCollections), fusedTransforms);
+        inputPCollectionId, sideInputIds, Matchers.containsInAnyOrder(pCollections),
+        fusedTransforms);
   }
 
   public ExecutableStageMatcher withOutputs(Matcher<Iterable<? extends String>> pCollections) {
-    return new ExecutableStageMatcher(inputPCollectionId, sideInputIds, pCollections, fusedTransforms);
+    return new ExecutableStageMatcher(inputPCollectionId, sideInputIds, pCollections,
+        fusedTransforms);
   }
 
   public ExecutableStageMatcher withOutputs(String... pCollections) {
     return new ExecutableStageMatcher(
-        inputPCollectionId, sideInputIds, Matchers.containsInAnyOrder(pCollections), fusedTransforms);
+        inputPCollectionId, sideInputIds, Matchers.containsInAnyOrder(pCollections),
+        fusedTransforms);
   }
 
   public ExecutableStageMatcher withTransforms(String... transforms) {
