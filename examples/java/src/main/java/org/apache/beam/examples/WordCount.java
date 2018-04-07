@@ -204,8 +204,8 @@ public class WordCount {
     // the same PCollection. Reenable text output when that is fixed.
     p.apply("ReadLines", TextIO.read().from(options.getInputFile()))
         .apply(new CountWords())
-        .apply(MapElements.via(new FormatAsTextFn()));
-        //.apply("WriteCounts", TextIO.write().to(options.getOutput()));
+        .apply(MapElements.via(new FormatAsTextFn()))
+        .apply("WriteCounts", TextIO.write().to(options.getOutput()));
 
     PipelineResult.State finalState = p.run().waitUntilFinish();
     LOG.info("Pipeline finished in state {}", finalState);
