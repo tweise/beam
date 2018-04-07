@@ -44,10 +44,12 @@ import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.RehydratedComponents;
+import org.apache.beam.runners.core.construction.WindowIntoTranslation;
 import org.apache.beam.runners.core.construction.WindowingStrategyTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.core.construction.graph.PipelineNode;
 import org.apache.beam.runners.core.construction.graph.QueryablePipeline;
+import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.functions.FlinkExecutableStageFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkExecutableStagePruningFunction;
 import org.apache.beam.runners.flink.translation.functions.FlinkPartialReduceFunction;
@@ -69,6 +71,7 @@ import org.apache.beam.sdk.transforms.join.RawUnionValue;
 import org.apache.beam.sdk.transforms.join.UnionCoder;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
+import org.apache.beam.sdk.transforms.windowing.WindowFn;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.util.WindowedValue.WindowedValueCoder;
 import org.apache.beam.sdk.values.KV;
@@ -168,6 +171,8 @@ public class FlinkBatchPortablePipelineTranslator
         this::translateGroupByKey);
     urnToTransformTranslator.put(PTransformTranslation.IMPULSE_TRANSFORM_URN,
         this::translateImpulse);
+    urnToTransformTranslator.put(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN,
+        this::translateAssignWindows);
     urnToTransformTranslator.put(ExecutableStage.URN,
         this::translateExecutableStage);
     urnToTransformTranslator.put(PTransformTranslation.RESHUFFLE_URN,
@@ -217,6 +222,39 @@ public class FlinkBatchPortablePipelineTranslator
             Iterables.getOnlyElement(transform.getInputsMap().values()));
     context.addDataSet(Iterables.getOnlyElement(transform.getOutputsMap().values()),
         inputDataSet.rebalance());
+  }
+
+  private <T> void translateAssignWindows(String id, RunnerApi.Pipeline pipeline,
+      BatchTranslationContext context) {
+    RunnerApi.Components components = pipeline.getComponents();
+    RunnerApi.PTransform transform = components.getTransformsOrThrow(id);
+    RunnerApi.WindowIntoPayload payload;
+    try {
+      payload = RunnerApi.WindowIntoPayload.parseFrom(transform.getSpec().getPayload());
+    } catch (InvalidProtocolBufferException e) {
+      throw new IllegalArgumentException(e);
+    }
+    WindowFn<T, ? extends BoundedWindow> windowFn = (WindowFn<T, ? extends BoundedWindow>)
+        WindowingStrategyTranslation.windowFnFromProto(payload.getWindowFn());
+
+    String inputCollectionId = Iterables.getOnlyElement(transform.getInputsMap().values());
+    String outputCollectionId =
+        Iterables.getOnlyElement(transform.getOutputsMap().values());
+    Coder<WindowedValue<T>> outputCoder = instantiateCoder(outputCollectionId, components);
+    TypeInformation<WindowedValue<T>> resultTypeInfo =
+        new CoderTypeInformation<>(outputCoder);
+
+    DataSet<WindowedValue<T>> inputDataSet = context.getDataSetOrThrow(inputCollectionId);
+
+    FlinkAssignWindows<T, ? extends BoundedWindow> assignWindowsFunction =
+        new FlinkAssignWindows<>(windowFn);
+
+    DataSet<WindowedValue<T>> resultDataSet = inputDataSet
+        .flatMap(assignWindowsFunction)
+        .name(transform.getUniqueName())
+        .returns(resultTypeInfo);
+
+    context.addDataSet(outputCollectionId, resultDataSet);
   }
 
   private <InputT> void translateExecutableStage(
