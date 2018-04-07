@@ -27,6 +27,10 @@ check.dependsOn test
 
 def envdir = "${project.buildDir}/gradleenv"
 
+configurations {
+  main
+}
+
 task setupVirtualenv {
   doLast {
     exec {
