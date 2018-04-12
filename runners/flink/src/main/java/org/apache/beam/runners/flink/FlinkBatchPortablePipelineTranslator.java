@@ -44,7 +44,6 @@ import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.PipelineOptionsTranslation;
 import org.apache.beam.runners.core.construction.RehydratedComponents;
-import org.apache.beam.runners.core.construction.WindowIntoTranslation;
 import org.apache.beam.runners.core.construction.WindowingStrategyTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.core.construction.graph.PipelineNode;
@@ -274,8 +273,6 @@ public class FlinkBatchPortablePipelineTranslator
     // Collect all output Coders and create a UnionCoder for our tagged outputs.
     List<Coder<?>> unionCoders = Lists.newArrayList();
     // Enforce tuple tag sorting by union tag index.
-    RehydratedComponents rehydratedComponents =
-        RehydratedComponents.forComponents(components);
     Map<String, Coder<WindowedValue<?>>> outputCoders = Maps.newHashMap();
     for (String collectionId : new TreeMap<>(outputMap.inverse()).values()) {
       //RunnerApi.PCollection coll = components.getPcollectionsOrThrow(collectionId);

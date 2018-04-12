@@ -30,14 +30,10 @@ job('beam_PostCommit_Java_ValidatesRunner_Gearpump_Gradle') {
       delegate,
       'gearpump-runner')
 
-  def gradle_switches = [
-    // Gradle log verbosity enough to diagnose basic build issues
-    "--info",
-    // Continue the build even if there is a failure to show as many potential failures as possible.
-    '--continue',
-    // Until we verify the build cache is working appropriately, force rerunning all tasks
-    '--rerun-tasks',
-  ]
+  // Publish all test results to Jenkins
+  publishers {
+    archiveJunit('**/build/test-results/**/*.xml')
+  }
 
   // Sets that this is a PostCommit job.
   // 0 5 31 2 * will run on Feb 31 (i.e. never) according to job properties.
@@ -54,10 +50,8 @@ job('beam_PostCommit_Java_ValidatesRunner_Gearpump_Gradle') {
   steps {
     gradle {
       rootBuildScriptDir(common_job_properties.checkoutDir)
-      tasks(':runners:gearpump:validatesRunner')
-      for (String gradle_switch : gradle_switches) {
-        switches(gradle_switch)
-      }
+      tasks(':beam-runners-gearpump:validatesRunner')
+      common_job_properties.setGradleSwitches(delegate)
     }
   }
 }

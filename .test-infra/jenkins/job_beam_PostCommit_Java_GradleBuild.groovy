@@ -20,10 +20,8 @@ import common_job_properties
 
 // This job runs the Java postcommit tests, including the suite of integration
 // tests.
-mavenJob('beam_PostCommit_Java_MavenInstall') {
-  description('Runs postcommit tests on the Java SDK.')
-
-  previousNames('beam_PostCommit_MavenVerify')
+job('beam_PostCommit_Java_GradleBuild') {
+  description('Runs PostCommit tests on the Java SDK.')
 
   // Execute concurrent builds if necessary.
   concurrentBuild()
@@ -31,35 +29,28 @@ mavenJob('beam_PostCommit_Java_MavenInstall') {
   // Set common parameters.
   common_job_properties.setTopLevelMainJobProperties(delegate, 'master', 240)
 
-  // Set maven parameters.
-  common_job_properties.setMavenConfig(delegate)
+  // Publish all test results to Jenkins
+  publishers {
+    archiveJunit('**/build/test-results/**/*.xml')
+  }
 
   // Sets that this is a PostCommit job.
   common_job_properties.setPostCommit(delegate)
 
   // Allows triggering this build against pull requests.
   common_job_properties.enablePhraseTriggeringFromPullRequest(
-          delegate,
-          'Java SDK Post Commit Tests',
-          'Run Java PostCommit')
+      delegate,
+      'Java SDK Post Commit Tests',
+      'Run Java PostCommit')
 
-  // Maven goals for this job.
-  goals([
-      'clean',
-      'install',
-      '--projects sdks/java/core,runners/direct-java,sdks/java/fn-execution',
-      ' --also-make',
-      '--also-make-dependents',
-      '--batch-mode',
-      '--errors',
-      '--fail-at-end',
-      '-P release,dataflow-runner',
-      '-DrepoToken=$COVERALLS_REPO_TOKEN',
-      '-D skipITs=false',
-      '''-D integrationTestPipelineOptions=\'[ \
-          "--project=apache-beam-testing", \
-          "--tempRoot=gs://temp-storage-for-end-to-end-tests", \
-          "--runner=TestDataflowRunner" \
-        ]\' '''
-  ].join(' '))
+  // Gradle goals for this job.
+  steps {
+    gradle {
+      rootBuildScriptDir(common_job_properties.checkoutDir)
+      tasks(':javaPostCommit')
+      common_job_properties.setGradleSwitches(delegate)
+      // Specify maven home on Jenkins, needed by Maven archetype integration tests.
+      switches('-Pmaven_home=/home/jenkins/tools/maven/apache-maven-3.5.2')
+    }
+  }
 }

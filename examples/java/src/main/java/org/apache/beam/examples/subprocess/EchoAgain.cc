@@ -15,29 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// 'Hello World!' program, just echos what was sent to it.
 
-package org.apache.beam.sdk.values.reflect;
+#include <iostream>
+#include <fstream>
 
-import static java.util.Collections.emptyList;
-import static org.junit.Assert.assertSame;
-
-import java.util.List;
-import org.apache.beam.sdk.values.RowType;
-import org.junit.Test;
-
-/**
- * Unit tests for {@link RowTypeGetters}.
- */
-public class RowTypeGettersTest {
-
-  @Test
-  public void testGetters() {
-    RowType rowType = RowType.fromNamesAndCoders(emptyList(), emptyList());
-    List<FieldValueGetter> fieldValueGetters = emptyList();
-
-    RowTypeGetters getters = new RowTypeGetters(rowType, fieldValueGetters);
-
-    assertSame(rowType, getters.rowType());
-    assertSame(fieldValueGetters, getters.valueGetters());
-  }
+int main(int argc, char* argv[])
+{
+    if(argc < 3){
+        std::cerr << "No parameter sent, must send the return file location and a statement to echo" << '\n';
+        return 1;
+    }
+    std::string retFile = argv[1];
+    std::string word = argv[2];
+    std::ofstream myfile;
+    myfile.open (retFile);
+    myfile << "You again? Well ok, here is your word again." << word ;
+    myfile.close();
+    return 0;
 }

@@ -18,12 +18,10 @@
 
 import common_job_properties
 
-// This is the Python precommit which runs a maven install, and the current set
-// of precommit tests.
-mavenJob('beam_PreCommit_Python_MavenInstall') {
-  description('Runs an install of the current GitHub Pull Request.')
-
-  previousNames('beam_PreCommit_MavenVerify')
+// This is the Go postcommit which runs a gradle build, and the current set
+// of postcommit tests.
+job('beam_PostCommit_Go_GradleBuild') {
+  description('Runs Go PostCommit tests against master.')
 
   // Execute concurrent builds if necessary.
   concurrentBuild()
@@ -34,24 +32,22 @@ mavenJob('beam_PreCommit_Python_MavenInstall') {
     'master',
     150)
 
-  // Set Maven parameters.
-  common_job_properties.setMavenConfig(delegate)
+  // Sets that this is a PostCommit job.
+  common_job_properties.setPostCommit(delegate, '15 */6 * * *', false)
 
-  // Sets that this is a PreCommit job.
-  common_job_properties.setPreCommit(delegate, 'mvn clean install -pl sdks/python -am -amd', 'Run Python PreCommit')
+  def gradle_command_line = './gradlew ' + common_job_properties.gradle_switches.join(' ') + ' :goPostCommit'
 
-  // Maven modules for this job: The Python SDK, its dependencies, and things that depend on it,
-  // excluding the container.
-  goals([
-    '--batch-mode',
-    '--errors',
-    '--activate-profiles release',
-    '--projects sdks/python,!sdks/python/container',
-    '--also-make',
-    '--also-make-dependents',
-    '-D pullRequest=$ghprbPullId',
-    'help:effective-settings',
-    'clean',
-    'install',
-  ].join(' '))
+  // Allows triggering this build against pull requests.
+  common_job_properties.enablePhraseTriggeringFromPullRequest(
+      delegate,
+      gradle_command_line,
+      'Run Go PostCommit')
+
+  steps {
+    gradle {
+      rootBuildScriptDir(common_job_properties.checkoutDir)
+      tasks(':goPostCommit')
+      common_job_properties.setGradleSwitches(delegate)
+    }
+  }
 }
