@@ -32,13 +32,13 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.core.SystemReduceFn;
-import org.apache.beam.runners.core.construction.CoderTranslation;
 import org.apache.beam.runners.core.construction.PTransformTranslation;
 import org.apache.beam.runners.core.construction.RehydratedComponents;
 import org.apache.beam.runners.core.construction.WindowingStrategyTranslation;
 import org.apache.beam.runners.core.construction.graph.ExecutableStage;
 import org.apache.beam.runners.core.construction.graph.PipelineNode;
 import org.apache.beam.runners.core.construction.graph.QueryablePipeline;
+import org.apache.beam.runners.flink.translation.functions.FlinkAssignWindows;
 import org.apache.beam.runners.flink.translation.types.CoderTypeInformation;
 import org.apache.beam.runners.flink.translation.wrappers.streaming.DoFnOperator;
 import org.apache.beam.runners.flink.translation.wrappers.streaming.ExecutableStageDoFnOperator;
@@ -48,11 +48,13 @@ import org.apache.beam.runners.flink.translation.wrappers.streaming.WindowDoFnOp
 import org.apache.beam.runners.flink.translation.wrappers.streaming.WorkItemKeySelector;
 import org.apache.beam.sdk.coders.ByteArrayCoder;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.coders.IterableCoder;
 import org.apache.beam.sdk.coders.KvCoder;
 import org.apache.beam.sdk.coders.VoidCoder;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.GlobalWindow;
+import org.apache.beam.sdk.transforms.windowing.WindowFn;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.TupleTag;
@@ -67,6 +69,9 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
+
+import static org.apache.beam.runners.flink.FlinkBatchPortablePipelineTranslator.instantiateCoder;
+import static org.apache.beam.runners.flink.FlinkBatchPortablePipelineTranslator.createOutputMap;
 
 /**
  * Translate an unbounded portable pipeline representation into a Flink pipeline representation.
@@ -135,6 +140,8 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
             this::translateGroupByKey);
     urnToTransformTranslator.put(PTransformTranslation.IMPULSE_TRANSFORM_URN,
             this::translateImpulse);
+    urnToTransformTranslator.put(PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN,
+            this::translateAssignWindows);
     urnToTransformTranslator.put(ExecutableStage.URN,
         this::translateExecutableStage);
     urnToTransformTranslator.put(PTransformTranslation.RESHUFFLE_URN,
@@ -156,7 +163,7 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
 
   public void urnNotFound(
           String id, RunnerApi.Pipeline pipeline,
-          FlinkBatchPortablePipelineTranslator.TranslationContext context) {
+          FlinkStreamingPortablePipelineTranslator.TranslationContext context) {
     throw new IllegalArgumentException(
             String.format("Unknown type of URN %s for PTrasnform with id %s.",
                     pipeline.getComponents().getTransformsOrThrow(id).getSpec().getUrn(),
@@ -257,32 +264,11 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
                     pipeline.getComponents().getPcollectionsOrThrow(
                             inputPCollectionId).getWindowingStrategyId());
 
-    RunnerApi.Coder inputCoderProto =
-            pipeline.getComponents().getCodersOrThrow(
-                    pipeline.getComponents().getPcollectionsOrThrow(
-                            inputPCollectionId).getCoderId());
-
     DataStream<WindowedValue<KV<K, V>>> inputDataStream =
             context.getDataStreamOrThrow(inputPCollectionId);
 
-    RunnerApi.Coder outputCoderProto =
-            pipeline.getComponents().getCodersOrThrow(
-                    pipeline.getComponents().getPcollectionsOrThrow(
-                            outputPCollectionId).getCoderId());
-
     RehydratedComponents rehydratedComponents =
             RehydratedComponents.forComponents(pipeline.getComponents());
-    KvCoder<K, V> inputCoder;
-    try {
-      inputCoder = (KvCoder<K, V>) CoderTranslation.fromProto(
-              inputCoderProto,
-              rehydratedComponents);
-    } catch (IOException e) {
-      throw new IllegalStateException(
-              String.format("Unable to hydrate GroupByKey input coder %s.",
-                      inputCoderProto),
-              e);
-    }
 
     WindowingStrategy<?, ?> windowingStrategy;
     try {
@@ -296,9 +282,13 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
               e);
     }
 
+    WindowedValue.WindowedValueCoder<KV<K, V>> inputCoder = instantiateCoder(
+            inputPCollectionId, pipeline.getComponents());
+    KvCoder<K, V> inputElementCoder = (KvCoder<K, V>) inputCoder.getValueCoder();
+
     SingletonKeyedWorkItemCoder<K, V> workItemCoder = SingletonKeyedWorkItemCoder.of(
-            inputCoder.getKeyCoder(),
-            inputCoder.getValueCoder(),
+            inputElementCoder.getKeyCoder(),
+            inputElementCoder.getValueCoder(),
             windowingStrategy.getWindowFn().windowCoder());
 
     WindowedValue.
@@ -318,32 +308,19 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
 
     KeyedStream<WindowedValue<SingletonKeyedWorkItem<K, V>>, ByteBuffer>
             keyedWorkItemStream =
-            workItemStream.keyBy(new WorkItemKeySelector<>(inputCoder.getKeyCoder()));
+            workItemStream.keyBy(new WorkItemKeySelector<>(inputElementCoder.getKeyCoder()));
 
     SystemReduceFn<K, V, Iterable<V>, Iterable<V>, BoundedWindow> reduceFn =
-            SystemReduceFn.buffering(inputCoder.getValueCoder());
+            SystemReduceFn.buffering(inputElementCoder.getValueCoder());
 
-    Coder<KV<K, Iterable<V>>> outputCoder;
-    try {
-      outputCoder = (Coder<KV<K, Iterable<V>>>) CoderTranslation.fromProto(
-              outputCoderProto,
-              rehydratedComponents);
-    } catch (IOException e) {
-      throw new IllegalStateException(
-              String.format("Unable to hydrate GroupByKey input coder %s.",
-                      inputCoderProto),
-              e);
-    }
+    Coder<Iterable<V>> accumulatorCoder = IterableCoder.of(inputElementCoder.getValueCoder());
 
-    //TypeInformation<WindowedValue<KV<K, Iterable<V>>>> outputTypeInfo =
-    //        context.getTypeInfo(context.getOutput(transform));
-    // TODO: use output windowing strategy?
-    WindowedValue.FullWindowedValueCoder<?> windowedValueOutputCoder =
-            WindowedValue.getFullCoder(
-                    outputCoder,
+    Coder<WindowedValue<KV<K, Iterable<V>>>> outputCoder =
+            WindowedValue.getFullCoder(KvCoder.of(inputElementCoder.getKeyCoder(), accumulatorCoder),
                     windowingStrategy.getWindowFn().windowCoder());
+
     TypeInformation<WindowedValue<KV<K, Iterable<V>>>> outputTypeInfo =
-            new CoderTypeInformation(windowedValueOutputCoder);
+            new CoderTypeInformation<>(outputCoder);
 
     TupleTag<KV<K, Iterable<V>>> mainTag = new TupleTag<>("main output");
 
@@ -360,11 +337,8 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
                     new HashMap<>(), /* side-input mapping */
                     Collections.emptyList(), /* side inputs */
                     context.getPipelineOptions(),
-                    inputCoder.getKeyCoder());
+                    inputElementCoder.getKeyCoder());
 
-    // our operator excepts WindowedValue<KeyedWorkItem> while our input stream
-    // is WindowedValue<SingletonKeyedWorkItem>, which is fine but Java doesn't like it ...
-    //@SuppressWarnings("unchecked")
     SingleOutputStreamOperator<WindowedValue<KV<K, Iterable<V>>>> outputDataStream =
             keyedWorkItemStream
                     .transform(
@@ -398,6 +372,39 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
             source);
   }
 
+  private <T> void translateAssignWindows(String id, RunnerApi.Pipeline pipeline,
+                                          StreamingTranslationContext context) {
+    RunnerApi.Components components = pipeline.getComponents();
+    RunnerApi.PTransform transform = components.getTransformsOrThrow(id);
+    RunnerApi.WindowIntoPayload payload;
+    try {
+      payload = RunnerApi.WindowIntoPayload.parseFrom(transform.getSpec().getPayload());
+    } catch (InvalidProtocolBufferException e) {
+      throw new IllegalArgumentException(e);
+    }
+    WindowFn<T, ? extends BoundedWindow> windowFn = (WindowFn<T, ? extends BoundedWindow>)
+            WindowingStrategyTranslation.windowFnFromProto(payload.getWindowFn());
+
+    String inputCollectionId = Iterables.getOnlyElement(transform.getInputsMap().values());
+    String outputCollectionId =
+            Iterables.getOnlyElement(transform.getOutputsMap().values());
+    Coder<WindowedValue<T>> outputCoder = instantiateCoder(outputCollectionId, components);
+    TypeInformation<WindowedValue<T>> resultTypeInfo =
+            new CoderTypeInformation<>(outputCoder);
+
+    DataStream<WindowedValue<T>> inputDataStream = context.getDataStreamOrThrow(inputCollectionId);
+
+    FlinkAssignWindows<T, ? extends BoundedWindow> assignWindowsFunction =
+            new FlinkAssignWindows<>(windowFn);
+
+    DataStream<WindowedValue<T>> resultDataStream = inputDataStream
+            .flatMap(assignWindowsFunction)
+            .name(transform.getUniqueName())
+            .returns(resultTypeInfo);
+
+    context.addDataStream(outputCollectionId, resultDataStream);
+  }
+
   public <InputT, OutputT> void translateExecutableStage(
           String id,
           RunnerApi.Pipeline pipeline,
@@ -413,28 +420,14 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
             RehydratedComponents.forComponents(components);
 
     // Mapping from local outputs to coder tag id.
-    BiMap<String, Integer> outputMap =
-            FlinkBatchPortablePipelineTranslator.createOutputMap(outputs.keySet());
+    BiMap<String, Integer> outputMap = createOutputMap(outputs.keySet());
     // Collect all output Coders and create a UnionCoder for our tagged outputs.
     List<Coder<?>> unionCoders = Lists.newArrayList();
     // Enforce tuple tag sorting by union tag index.
     Map<String, Coder<WindowedValue<?>>> outputCoders = Maps.newHashMap();
     for (String localOutputName : new TreeMap<>(outputMap.inverse()).values()) {
       String collectionId = outputs.get(localOutputName);
-      RunnerApi.PCollection coll = components.getPcollectionsOrThrow(collectionId);
-      RunnerApi.Coder coderProto = components.getCodersOrThrow(coll.getCoderId());
-      Coder<WindowedValue<?>> windowCoder;
-      try {
-        Coder elementCoder = CoderTranslation.fromProto(coderProto, rehydratedComponents);
-        RunnerApi.WindowingStrategy windowProto = components.getWindowingStrategiesOrThrow(
-                coll.getWindowingStrategyId());
-        WindowingStrategy<?, ?> windowingStrategy =
-                WindowingStrategyTranslation.fromProto(windowProto, rehydratedComponents);
-        windowCoder = WindowedValue.getFullCoder(elementCoder,
-                windowingStrategy.getWindowFn().windowCoder());
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
+      Coder<WindowedValue<?>> windowCoder = (Coder) instantiateCoder(collectionId, components);
       outputCoders.put(localOutputName, windowCoder);
       unionCoders.add(windowCoder);
     }
@@ -505,22 +498,9 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
     DataStream<WindowedValue<InputT>> inputDataStream = context.getDataStreamOrThrow(
             inputPCollectionId);
 
-    RunnerApi.Coder inputCoderProto =
-            pipeline.getComponents().getCodersOrThrow(
-                    pipeline.getComponents().getPcollectionsOrThrow(
-                            inputPCollectionId).getCoderId());
-    final Coder<InputT> inputCoder;
-    try {
-      inputCoder = (Coder<InputT>) CoderTranslation.fromProto(
-              inputCoderProto,
-              rehydratedComponents);
-    } catch (IOException e) {
-      throw new IllegalStateException(
-              String.format("Unable to hydrate ExecutableStage input coder %s.",
-                      inputCoderProto),
-              e);
-    }
 
+    // TODO: coder for push back for side inputs
+    final Coder<InputT> inputCoder = null;
     Coder keyCoder = null;
     CoderTypeInformation<WindowedValue<OutputT>> outputTypeInformation = (!outputs.isEmpty())
             ? new CoderTypeInformation(outputCoders.get(mainOutputTag.getId())) : null;

@@ -98,7 +98,10 @@ public class ReferenceRunnerJobServiceTest {
             InProcessChannelBuilder.forName(stagingEndpoint.getUrl()).build());
     File foo = writeTempFile("foo", "foo, bar, baz".getBytes());
     File bar = writeTempFile("spam", "spam, ham, eggs".getBytes());
-    stager.stage(ImmutableList.of(foo, bar));
+    stager.stage(ImmutableList.of(
+            ArtifactServiceStager.FileToStage.of(new File("foo"), "foo"),
+            ArtifactServiceStager.FileToStage.of(new File("bar"), "bar")
+            ));
     List<byte[]> tempDirFiles = readFlattendFiles(runnerTemp.getRoot());
     assertThat(
         tempDirFiles,

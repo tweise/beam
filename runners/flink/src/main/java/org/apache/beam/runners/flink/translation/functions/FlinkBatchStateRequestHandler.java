@@ -20,12 +20,12 @@ package org.apache.beam.runners.flink.translation.functions;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.beam.runners.core.construction.UrnUtils.validateCommonUrn;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ByteString;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import org.apache.beam.collect.ImmutableMap;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi;
 import org.apache.beam.model.fnexecution.v1.BeamFnApi.StateResponse.Builder;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
