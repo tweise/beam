@@ -17,6 +17,9 @@
  */
 package org.apache.beam.runners.flink;
 
+import static org.apache.beam.runners.flink.FlinkBatchPortablePipelineTranslator.createOutputMap;
+import static org.apache.beam.runners.flink.FlinkBatchPortablePipelineTranslator.instantiateCoder;
+
 import com.google.common.collect.BiMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -69,9 +72,6 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
-
-import static org.apache.beam.runners.flink.FlinkBatchPortablePipelineTranslator.instantiateCoder;
-import static org.apache.beam.runners.flink.FlinkBatchPortablePipelineTranslator.createOutputMap;
 
 /**
  * Translate an unbounded portable pipeline representation into a Flink pipeline representation.
@@ -315,8 +315,8 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
 
     Coder<Iterable<V>> accumulatorCoder = IterableCoder.of(inputElementCoder.getValueCoder());
 
-    Coder<WindowedValue<KV<K, Iterable<V>>>> outputCoder =
-            WindowedValue.getFullCoder(KvCoder.of(inputElementCoder.getKeyCoder(), accumulatorCoder),
+    Coder<WindowedValue<KV<K, Iterable<V>>>> outputCoder = WindowedValue.getFullCoder(
+            KvCoder.of(inputElementCoder.getKeyCoder(), accumulatorCoder),
                     windowingStrategy.getWindowFn().windowCoder());
 
     TypeInformation<WindowedValue<KV<K, Iterable<V>>>> outputTypeInfo =
