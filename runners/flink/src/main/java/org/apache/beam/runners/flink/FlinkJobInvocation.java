@@ -80,7 +80,8 @@ public class FlinkJobInvocation implements JobInvocation {
     RunnerApi.Pipeline fusedPipeline = GreedyPipelineFuser.fuse(pipeline).toPipeline();
     final JobExecutionResult result;
 
-    if (!pipelineOptions.isStreaming() && !FlinkTranslationUtils.hasUnboundedPCollections(fusedPipeline)) {
+    if (!pipelineOptions.isStreaming()
+            && !FlinkTranslationUtils.hasUnboundedPCollections(fusedPipeline)) {
       // TODO: Do we need to inspect for unbounded sources before fusing?
       // batch translation
       FlinkBatchPortablePipelineTranslator translator = new FlinkBatchPortablePipelineTranslator();

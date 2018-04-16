@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
   with beam.Pipeline(runner=runner, options=pipeline_options) as p:
     (p
-        | 'Create' >> beam.Create(['hello', 'world'])
+        | 'Create' >> beam.Create(['hello', 'world', 'world'])
         #| 'Read' >> ReadFromText("gs://dataflow-samples/shakespeare/kinglear.txt")
         | 'Split' >> (beam.FlatMap(lambda x: re.findall(r'[A-Za-z\']+', x))
                         .with_output_types(unicode))

@@ -161,7 +161,7 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
 
   }
 
-  public void urnNotFound(
+  private void urnNotFound(
           String id, RunnerApi.Pipeline pipeline,
           FlinkStreamingPortablePipelineTranslator.TranslationContext context) {
     throw new IllegalArgumentException(
@@ -182,7 +182,7 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
         inputDataSet.rebalance());
   }
 
-  public <T>  void translateFlatten(
+  private <T>  void translateFlatten(
           String id,
           RunnerApi.Pipeline pipeline,
           StreamingTranslationContext context) {
@@ -247,7 +247,7 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
     }
   }
 
-  public <K, V> void translateGroupByKey(
+  private <K, V> void translateGroupByKey(
           String id,
           RunnerApi.Pipeline pipeline,
           StreamingTranslationContext context) {
@@ -352,7 +352,7 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
 
   }
 
-  public void translateImpulse(
+  private void translateImpulse(
           String id,
           RunnerApi.Pipeline pipeline,
           StreamingTranslationContext context) {
@@ -405,7 +405,7 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
     context.addDataStream(outputCollectionId, resultDataStream);
   }
 
-  public <InputT, OutputT> void translateExecutableStage(
+  private <InputT, OutputT> void translateExecutableStage(
           String id,
           RunnerApi.Pipeline pipeline,
           StreamingTranslationContext context) {
