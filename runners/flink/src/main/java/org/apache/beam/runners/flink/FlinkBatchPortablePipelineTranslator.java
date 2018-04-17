@@ -563,6 +563,7 @@ public class FlinkBatchPortablePipelineTranslator
     context.addDataSet(collectionId, pruningOperator);
   }
 
+  // TODO: common with streaming
   // Creates a mapping from PCollection id to output tag integer.
   static BiMap<String, Integer> createOutputMap(Iterable<String> localOutputs) {
     ImmutableBiMap.Builder<String, Integer> builder = ImmutableBiMap.builder();
@@ -574,7 +575,8 @@ public class FlinkBatchPortablePipelineTranslator
     return builder.build();
   }
 
-  private static <T> WindowedValueCoder<T> instantiateCoder(String collectionId,
+  // TODO: common with streaming
+  static <T> WindowedValueCoder<T> instantiateCoder(String collectionId,
       RunnerApi.Components components) {
     RunnerApi.PCollection collection = components.getPcollectionsOrThrow(collectionId);
     String elementCoderId = collection.getCoderId();
