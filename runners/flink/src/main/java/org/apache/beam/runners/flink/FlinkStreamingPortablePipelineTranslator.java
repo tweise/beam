@@ -146,6 +146,9 @@ public class FlinkStreamingPortablePipelineTranslator implements FlinkPortablePi
         this::translateExecutableStage);
     urnToTransformTranslator.put(PTransformTranslation.RESHUFFLE_URN,
         this::translateReshuffle);
+
+    CustomFlinkStreamingPortableTranslations customTranslations = new CustomFlinkStreamingPortableTranslations();
+    customTranslations.addTo(urnToTransformTranslator);
   }
 
 
