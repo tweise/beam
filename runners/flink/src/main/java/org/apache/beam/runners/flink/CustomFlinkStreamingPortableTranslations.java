@@ -1,5 +1,6 @@
 package org.apache.beam.runners.flink;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Iterables;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.flink.translation.types.CoderTypeInformation;
@@ -13,6 +14,7 @@ import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
 import org.apache.flink.streaming.util.serialization.KeyedDeserializationSchema;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Properties;
 
@@ -29,13 +31,28 @@ public class CustomFlinkStreamingPortableTranslations {
     RunnerApi.PTransform pTransform =
             pipeline.getComponents().getTransformsOrThrow(id);
 
+    System.out.println("###transform: " + pTransform);
+
+    Properties properties = new Properties();
+    ObjectMapper mapper = new ObjectMapper();
+    try {
+      //Map<String, Object> params = mapper.readValue(
+      //        BytesValue.parseFrom(pTransform.getSpec().getPayload().toByteArray()).getValue().toByteArray(), Map.class);
+      Map<String, Object> params = mapper.readValue(
+              pTransform.getSpec().getPayload().toByteArray(), Map.class);
+      properties.putAll(params);
+    } catch (IOException e) {
+      throw new RuntimeException("Could not parse KafkaConsumer properties.", e);
+    }
+
+    System.out.println("###properties: " + properties);
     //if (true) {
     //  throw new UnsupportedOperationException(String.format("not implemented: id=%s, transform=%s", id, pTransform));
     //}
 
-    Properties properties = new Properties();
-    properties.setProperty("bootstrap.servers", "localhost:9092");
-    properties.setProperty("group.id", "beam-example-group");
+    //Properties properties = new Properties();
+    //properties.setProperty("bootstrap.servers", "localhost:9092");
+    //properties.setProperty("group.id", "beam-example-group");
 
     DataStreamSource<WindowedValue<byte[]>> source = context.getExecutionEnvironment().addSource(
             new FlinkKafkaConsumer010<>("beam-example",
