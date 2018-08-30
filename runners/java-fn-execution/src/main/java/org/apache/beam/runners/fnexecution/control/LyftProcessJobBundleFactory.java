@@ -5,7 +5,6 @@ import com.google.common.collect.ImmutableList;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import org.apache.beam.model.pipeline.v1.RunnerApi;
 import org.apache.beam.runners.fnexecution.GrpcFnServer;
@@ -18,8 +17,7 @@ import org.apache.beam.runners.fnexecution.logging.GrpcLoggingService;
 import org.apache.beam.runners.fnexecution.provisioning.JobInfo;
 import org.apache.beam.runners.fnexecution.provisioning.StaticGrpcProvisionService;
 import org.apache.beam.sdk.fn.IdGenerator;
-import org.apache.beam.vendor.protobuf.v3.com.google.protobuf.Value;
-import org.codehaus.jackson.map.ObjectMapper;
+import org.apache.beam.vendor.protobuf.v3.com.google.protobuf.util.JsonFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,7 +50,7 @@ public class LyftProcessJobBundleFactory extends ProcessJobBundleFactory {
       ControlClientPool.Source clientSource,
       IdGenerator idGenerator) {
 
-    return new LyftEnvironmentFactory(
+    return new LyftPythonEnvironmentFactory(
         Preconditions.checkNotNull(JOB_INFO.get(), "jobInfo is null"),
         controlServiceServer,
         loggingServiceServer,
@@ -62,8 +60,8 @@ public class LyftProcessJobBundleFactory extends ProcessJobBundleFactory {
         clientSource);
   }
 
-  private static class LyftEnvironmentFactory implements EnvironmentFactory {
-    private static final Logger LOG = LoggerFactory.getLogger(LyftEnvironmentFactory.class);
+  private static class LyftPythonEnvironmentFactory implements EnvironmentFactory {
+    private static final Logger LOG = LoggerFactory.getLogger(LyftPythonEnvironmentFactory.class);
 
     private final JobInfo jobInfo;
     private final ProcessManager processManager;
@@ -74,7 +72,7 @@ public class LyftProcessJobBundleFactory extends ProcessJobBundleFactory {
     private final IdGenerator idGenerator;
     private final ControlClientPool.Source clientSource;
 
-    private LyftEnvironmentFactory(
+    private LyftPythonEnvironmentFactory(
         JobInfo jobInfo,
         GrpcFnServer<FnApiControlClientPoolService> controlServiceServer,
         GrpcFnServer<GrpcLoggingService> loggingServiceServer,
@@ -97,17 +95,7 @@ public class LyftProcessJobBundleFactory extends ProcessJobBundleFactory {
     public RemoteEnvironment createEnvironment(RunnerApi.Environment environment) throws Exception {
       String workerId = idGenerator.getId();
 
-      HashMap<String, String> pipelineOptions = new HashMap<>();
-      for (Map.Entry<String, Value> entry : jobInfo.pipelineOptions().getFieldsMap().entrySet()) {
-        String strVal = entry.getValue().getStringValue();
-        // avoid adding empty strings that make the harness bark like:
-        // sdk_worker_main.py: error: argument --profile_cpu: ignored explicit argument u''
-        if (!"".equals(strVal)) {
-          pipelineOptions.put(entry.getKey(), strVal);
-        }
-      }
-      String pipelineOptionsJson = new ObjectMapper().writeValueAsString(pipelineOptions);
-
+      String pipelineOptionsJson = JsonFormat.printer().print(jobInfo.pipelineOptions());
       HashMap<String, String> env = new HashMap<>();
       env.put("WORKER_ID", workerId);
       env.put("PIPELINE_OPTIONS", pipelineOptionsJson);
