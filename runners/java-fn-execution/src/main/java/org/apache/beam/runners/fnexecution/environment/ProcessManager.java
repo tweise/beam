@@ -190,6 +190,7 @@ public class ProcessManager {
 
     private ShutdownHook() {}
 
+    @Override
     public void run() {
       synchronized (ALL_PROCESS_MANAGERS) {
         ALL_PROCESS_MANAGERS.forEach(ProcessManager::stopAllProcesses);
