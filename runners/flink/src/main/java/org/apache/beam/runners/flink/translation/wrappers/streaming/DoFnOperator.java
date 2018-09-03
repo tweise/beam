@@ -626,7 +626,7 @@ public class DoFnOperator<InputT, OutputT> extends AbstractStreamOperator<Window
       // we need to set the correct key in case the operator is
       // a (keyed) window operator
       setKeyContextElement1(new StreamRecord<>(element));
-
+      System.out.println("### processing pushed back data");
       doFnRunner.processElement(element);
     }
 

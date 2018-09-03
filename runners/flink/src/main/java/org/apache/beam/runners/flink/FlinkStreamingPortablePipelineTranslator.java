@@ -174,7 +174,9 @@ public class FlinkStreamingPortablePipelineTranslator
         PTransformTranslation.ASSIGN_WINDOWS_TRANSFORM_URN, this::translateAssignWindows);
     translatorMap.put(ExecutableStage.URN, this::translateExecutableStage);
     translatorMap.put(PTransformTranslation.RESHUFFLE_URN, this::translateReshuffle);
-
+    translatorMap.put(
+            PTransformTranslation.CREATE_VIEW_TRANSFORM_URN,
+            this::translateView);
     this.urnToTransformTranslator = translatorMap.build();
   }
 
@@ -198,6 +200,11 @@ public class FlinkStreamingPortablePipelineTranslator
         String.format(
             "Unknown type of URN %s for PTransform with id %s.",
             pipeline.getComponents().getTransformsOrThrow(id).getSpec().getUrn(), id));
+  }
+
+  private void translateView(
+          String id, RunnerApi.Pipeline pipeline, StreamingTranslationContext context) {
+    throw new RuntimeException("Unexpected view translation for " +id);
   }
 
   private <K, V> void translateReshuffle(
@@ -569,7 +576,7 @@ public class FlinkStreamingPortablePipelineTranslator
         stagePayload.getSideInputsList()) {
 
       // TODO: local name is unique as long as only one transform with side input can be within a stage
-      String sideInputTag = sideInputId.getLocalName();
+      String sideInputTag = sideInputId.getTransformId() + "@" + sideInputId.getLocalName();
       String collectionId =
           components
               .getTransformsOrThrow(sideInputId.getTransformId())

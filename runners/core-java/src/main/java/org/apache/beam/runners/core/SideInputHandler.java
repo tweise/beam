@@ -134,6 +134,7 @@ public class SideInputHandler implements ReadyCheckingSideInputReader {
     StateTag<ValueState<Iterable<?>>> stateTag = sideInputContentsTags.get(sideInput);
 
     for (BoundedWindow window : value.getWindows()) {
+      System.out.println("###addSideInputValue: " + sideInput.getTagInternal() + " window: " + window);
       stateInternals
           .state(StateNamespaces.window(windowCoder, window), stateTag)
           .write(value.getValue());
@@ -168,6 +169,8 @@ public class SideInputHandler implements ReadyCheckingSideInputReader {
    * @return
    */
   public <T> Iterable<?> getIterable(PCollectionView<T> view, BoundedWindow window) {
+    System.out.println("###getIterable: " + view.getTagInternal() + " window: " + window);
+
     @SuppressWarnings("unchecked")
     Coder<BoundedWindow> windowCoder =
         (Coder<BoundedWindow>) view.getWindowingStrategyInternal().getWindowFn().windowCoder();
