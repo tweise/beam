@@ -17,6 +17,7 @@
  */
 package org.apache.beam.runners.flink;
 
+import static org.apache.beam.runners.flink.translation.wrappers.streaming.io.UnboundedSourceWrapperTest.getSplitSources;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -72,7 +73,7 @@ public class FlinkStreamingTransformTranslatorsTest {
         (UnboundedSourceWrapperNoValueWithRecordId)
             ((SourceTransformation<?>) sourceTransform).getOperator().getUserFunction();
 
-    assertEquals(maxParallelism, source.getUnderlyingSource().getSplitSources().size());
+    assertEquals(maxParallelism, getSplitSources(source.getUnderlyingSource()).size());
   }
 
   @Test
@@ -91,7 +92,7 @@ public class FlinkStreamingTransformTranslatorsTest {
         (UnboundedSourceWrapperNoValueWithRecordId)
             ((SourceTransformation<?>) sourceTransform).getOperator().getUserFunction();
 
-    assertEquals(parallelism, source.getUnderlyingSource().getSplitSources().size());
+    assertEquals(parallelism, getSplitSources(source.getUnderlyingSource()).size());
   }
 
   @Test
@@ -114,7 +115,7 @@ public class FlinkStreamingTransformTranslatorsTest {
                 .getOperator()
                 .getUserFunction();
 
-    assertEquals(maxParallelism, source.getSplitSources().size());
+    assertEquals(maxParallelism, getSplitSources(source).size());
   }
 
   @Test
@@ -135,7 +136,7 @@ public class FlinkStreamingTransformTranslatorsTest {
                 .getOperator()
                 .getUserFunction();
 
-    assertEquals(parallelism, source.getSplitSources().size());
+    assertEquals(parallelism, getSplitSources(source).size());
   }
 
   private StreamTransformation<?> applyReadSourceTransform(

@@ -17,7 +17,6 @@
  */
 package org.apache.beam.runners.flink.translation.wrappers.streaming.io;
 
-import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -462,40 +461,6 @@ public class UnboundedSourceWrapper<OutputT, CheckpointMarkT extends UnboundedSo
         }
       }
     }
-  }
-
-  /** Visible so that we can check this in tests. Must not be used for anything else. */
-  @VisibleForTesting
-  public List<? extends UnboundedSource<OutputT, CheckpointMarkT>> getSplitSources() {
-    return splitSources;
-  }
-
-  /** Visible so that we can check this in tests. Must not be used for anything else. */
-  @VisibleForTesting
-  List<? extends UnboundedSource<OutputT, CheckpointMarkT>> getLocalSplitSources() {
-    return localSplitSources;
-  }
-
-  /** Visible so that we can check this in tests. Must not be used for anything else. */
-  @VisibleForTesting
-  List<UnboundedSource.UnboundedReader<OutputT>> getLocalReaders() {
-    return localReaders;
-  }
-
-  /** Visible so that we can check this in tests. Must not be used for anything else. */
-  @VisibleForTesting
-  boolean isRunning() {
-    return isRunning;
-  }
-
-  /**
-   * Visible so that we can set this in tests. This is only set in the run method which is
-   * inconvenient for the tests where the context is assumed to be set when run is called. Must not
-   * be used for anything else.
-   */
-  @VisibleForTesting
-  public void setSourceContext(SourceContext<WindowedValue<ValueWithRecordId<OutputT>>> ctx) {
-    context = ctx;
   }
 
   @Override

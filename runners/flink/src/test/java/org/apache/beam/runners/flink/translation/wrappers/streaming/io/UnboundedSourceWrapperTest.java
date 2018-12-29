@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import org.apache.beam.runners.flink.FlinkPipelineOptions;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.io.UnboundedSource;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
@@ -62,6 +63,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.junit.runners.Parameterized;
 import org.mockito.Mockito;
+import org.mockito.internal.util.reflection.Whitebox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -122,7 +124,7 @@ public class UnboundedSourceWrapperTest {
 
         // the source wrapper will only request as many splits as there are tasks and the source
         // will create at most numSplits splits
-        assertEquals(numSplits, flinkWrapper.getSplitSources().size());
+        assertEquals(numSplits, getSplitSources(flinkWrapper).size());
 
         StreamSource<
                 WindowedValue<ValueWithRecordId<KV<Integer, Integer>>>,
@@ -231,7 +233,7 @@ public class UnboundedSourceWrapperTest {
       UnboundedSourceWrapper<KV<Integer, Integer>, TestCountingSource.CounterMark> flinkWrapper =
           new UnboundedSourceWrapper<>("stepName", options, source, numSplits);
 
-      assertEquals(numSplits, flinkWrapper.getSplitSources().size());
+      assertEquals(numSplits, getSplitSources(flinkWrapper).size());
 
       final StreamSource<
               WindowedValue<ValueWithRecordId<KV<Integer, Integer>>>,
@@ -303,8 +305,7 @@ public class UnboundedSourceWrapperTest {
 
       sourceThread.start();
 
-      while (flinkWrapper
-          .getLocalReaders()
+      while (getLocalReaders(flinkWrapper)
           .stream()
           .anyMatch(reader -> reader.getWatermark().getMillis() == 0)) {
         // readers haven't been initialized
@@ -358,7 +359,7 @@ public class UnboundedSourceWrapperTest {
       UnboundedSourceWrapper<KV<Integer, Integer>, TestCountingSource.CounterMark> flinkWrapper =
           new UnboundedSourceWrapper<>("stepName", options, source, numSplits);
 
-      assertEquals(numSplits, flinkWrapper.getSplitSources().size());
+      assertEquals(numSplits, getSplitSources(flinkWrapper).size());
 
       StreamSource<
               WindowedValue<ValueWithRecordId<KV<Integer, Integer>>>,
@@ -427,7 +428,7 @@ public class UnboundedSourceWrapperTest {
       final ArrayList<Integer> finalizeList = new ArrayList<>();
       TestCountingSource.setFinalizeTracker(finalizeList);
       testHarness.notifyOfCompletedCheckpoint(0);
-      assertEquals(flinkWrapper.getLocalSplitSources().size(), finalizeList.size());
+      assertEquals(getLocalSplitSources(flinkWrapper).size(), finalizeList.size());
 
       // create a completely new source but restore from the snapshot
       TestCountingSource restoredSource = new TestCountingSource(numElements);
@@ -435,7 +436,7 @@ public class UnboundedSourceWrapperTest {
           restoredFlinkWrapper =
               new UnboundedSourceWrapper<>("stepName", options, restoredSource, numSplits);
 
-      assertEquals(numSplits, restoredFlinkWrapper.getSplitSources().size());
+      assertEquals(numSplits, getSplitSources(restoredFlinkWrapper).size());
 
       StreamSource<
               WindowedValue<ValueWithRecordId<KV<Integer, Integer>>>,
@@ -497,8 +498,7 @@ public class UnboundedSourceWrapperTest {
         readSecondBatchOfElements = true;
       }
 
-      assertEquals(
-          Math.max(1, numSplits / numTasks), restoredFlinkWrapper.getLocalSplitSources().size());
+      assertEquals(Math.max(1, numSplits / numTasks), getLocalReaders(restoredFlinkWrapper).size());
 
       assertTrue("Did not successfully read second batch of elements.", readSecondBatchOfElements);
 
@@ -566,7 +566,7 @@ public class UnboundedSourceWrapperTest {
 
       // when the source checkpointed a null we don't re-initialize the splits, that is we
       // will have no splits.
-      assertEquals(0, restoredFlinkWrapper.getLocalSplitSources().size());
+      assertEquals(0, getLocalSplitSources(restoredFlinkWrapper).size());
     }
 
     /** A special {@link RuntimeException} that we throw to signal that the test was successful. */
@@ -633,10 +633,10 @@ public class UnboundedSourceWrapperTest {
       Mockito.when(sourceContext.getCheckpointLock()).thenReturn(checkpointLock);
       // Initialize source context early to avoid concurrency issues with its initialization in the run
       // method and the onProcessingTime call on the wrapper.
-      sourceWrapper.setSourceContext(sourceContext);
+      Whitebox.setInternalState(sourceWrapper, "context", sourceContext);
 
       sourceWrapper.open(new Configuration());
-      assertThat(sourceWrapper.getLocalReaders().isEmpty(), is(!shouldHaveReaders));
+      assertThat(getLocalReaders(sourceWrapper).isEmpty(), is(!shouldHaveReaders));
 
       Thread thread =
           new Thread(
@@ -655,14 +655,14 @@ public class UnboundedSourceWrapperTest {
           Thread.sleep(200);
         }
         // Source should still be running even if there are no readers
-        assertThat(sourceWrapper.isRunning(), is(true));
+        assertThat(isRunning(sourceWrapper), is(true));
         synchronized (checkpointLock) {
           // Trigger emission of the watermark by updating processing time.
           // The actual processing time value does not matter.
           sourceWrapper.onProcessingTime(42);
         }
         // Source should still be running even when watermark is at max
-        assertThat(sourceWrapper.isRunning(), is(true));
+        assertThat(isRunning(sourceWrapper), is(true));
         assertThat(thread.isAlive(), is(true));
         sourceWrapper.cancel();
       } finally {
@@ -686,5 +686,22 @@ public class UnboundedSourceWrapperTest {
     public StreamStatus getStreamStatus() {
       return currentStreamStatus;
     }
+  }
+
+  public static Collection<?> getSplitSources(UnboundedSourceWrapper flinkWrapper) {
+    return ((Collection) Whitebox.getInternalState(flinkWrapper, "splitSources"));
+  }
+
+  private static Collection<?> getLocalSplitSources(UnboundedSourceWrapper flinkWrapper) {
+    return ((Collection) Whitebox.getInternalState(flinkWrapper, "localSplitSources"));
+  }
+
+  private static Collection<UnboundedSource.UnboundedReader<?>> getLocalReaders(
+      UnboundedSourceWrapper flinkWrapper) {
+    return ((Collection) Whitebox.getInternalState(flinkWrapper, "localReaders"));
+  }
+
+  private static boolean isRunning(UnboundedSourceWrapper flinkWrapper) {
+    return ((Boolean) Whitebox.getInternalState(flinkWrapper, "isRunning")).booleanValue();
   }
 }
