@@ -66,7 +66,6 @@ import org.apache.beam.runners.fnexecution.provisioning.JobInfo;
 import org.apache.beam.runners.fnexecution.state.StateRequestHandler;
 import org.apache.beam.runners.fnexecution.state.StateRequestHandlers;
 import org.apache.beam.sdk.coders.Coder;
-import org.apache.beam.sdk.coders.CoderException;
 import org.apache.beam.sdk.fn.data.FnDataReceiver;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.state.BagState;
@@ -76,12 +75,12 @@ import org.apache.beam.sdk.transforms.DoFnSchemaInformation;
 import org.apache.beam.sdk.transforms.join.RawUnionValue;
 import org.apache.beam.sdk.transforms.windowing.BoundedWindow;
 import org.apache.beam.sdk.transforms.windowing.PaneInfo;
-import org.apache.beam.sdk.util.CoderUtils;
 import org.apache.beam.sdk.util.WindowedValue;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.WindowingStrategy;
+import org.apache.beam.vendor.grpc.v1p13p1.com.google.protobuf.ByteString;
 import org.apache.beam.vendor.guava.v20_0.com.google.common.base.Preconditions;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.runtime.state.KeyedStateBackend;
@@ -268,7 +267,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
         public Iterable<V> get(K key, W window) {
           try {
             stateBackendLock.lock();
-            prepareStateBackend(key, keyCoder);
+            prepareStateBackend(key);
             StateNamespace namespace = StateNamespaces.window(windowCoder, window);
             if (LOG.isDebugEnabled()) {
               LOG.debug(
@@ -290,7 +289,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
         public void append(K key, W window, Iterator<V> values) {
           try {
             stateBackendLock.lock();
-            prepareStateBackend(key, keyCoder);
+            prepareStateBackend(key);
             StateNamespace namespace = StateNamespaces.window(windowCoder, window);
             if (LOG.isDebugEnabled()) {
               LOG.debug(
@@ -314,7 +313,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
         public void clear(K key, W window) {
           try {
             stateBackendLock.lock();
-            prepareStateBackend(key, keyCoder);
+            prepareStateBackend(key);
             StateNamespace namespace = StateNamespaces.window(windowCoder, window);
             if (LOG.isDebugEnabled()) {
               LOG.debug(
@@ -332,16 +331,9 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
           }
         }
 
-        private void prepareStateBackend(K key, Coder<K> keyCoder) {
-          final ByteBuffer encodedKey;
-          try {
-            // We need to have NESTED context here with the ByteStringCoder.
-            // See StateRequestHandlers.
-            encodedKey =
-                ByteBuffer.wrap(CoderUtils.encodeToByteArray(keyCoder, key, Coder.Context.NESTED));
-          } catch (CoderException e) {
-            throw new RuntimeException("Couldn't set key for state");
-          }
+        private void prepareStateBackend(K key) {
+          // TODO: fix type parameters for ByteString
+          final ByteBuffer encodedKey = ByteBuffer.wrap(((ByteString) key).toByteArray());
           keyedStateBackend.setCurrentKey(encodedKey);
         }
       };
