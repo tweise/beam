@@ -270,9 +270,9 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
             stateBackendLock.lock();
             prepareStateBackend(key, keyCoder);
             StateNamespace namespace = StateNamespaces.window(windowCoder, window);
-            if (LOG.isDebugEnabled()) {
-              LOG.debug(
-                  "State get for {} {} {} {}",
+            if (LOG.isInfoEnabled()) {
+              LOG.info(
+                  "###State get for {} {} {} {}",
                   pTransformId,
                   userStateId,
                   Arrays.toString(keyedStateBackend.getCurrentKey().array()),
@@ -406,7 +406,12 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
   @Override
   public void fireTimer(InternalTimer<?, TimerInternals.TimerData> timer) {
     if (CleanupTimer.GC_TIMER_ID.equals(timer.getNamespace().getTimerId())) {
-      deferredTimers.add(timer);
+      LOG.info(
+              "###not deferred cleanup {} timer {}",
+              Arrays.toString((((ByteBuffer) timer.getKey()).array())),
+              timer);
+      reallyFireTimer(timer);
+      // deferredTimers.add(timer);
     } else {
       reallyFireTimer(timer);
     }
@@ -498,6 +503,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     //
     if (sdkHarnessRunner.isBundleInProgress()) {
       if (mark.getTimestamp() >= BoundedWindow.TIMESTAMP_MAX_VALUE.getMillis()) {
+        LOG.info("###final watermark");
         invokeFinishBundle();
         setPushedBackWatermark(Long.MAX_VALUE);
       } else {
@@ -810,6 +816,10 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
 
     @Override
     public void clearForWindow(BoundedWindow window) {
+      LOG.info(
+          "###clearForWindow {} {}",
+          Arrays.toString((byte[]) stateInternals.getKey()),
+          window);
       // Executed in the context of onTimer(..) where the correct key will be set
       for (String userState : userStateNames) {
         StateNamespace namespace = StateNamespaces.window(windowCoder, window);

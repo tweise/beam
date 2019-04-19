@@ -367,6 +367,7 @@ class FnApiRunnerTest(unittest.TestCase):
       @userstate.on_timer(timer_spec)
       def process_timer(self, state=beam.DoFn.StateParam(state_spec)):
         buffer = state.read()
+        logging.warn('###process_timer %s', list(buffer))
         state.clear()
         yield buffer
 
