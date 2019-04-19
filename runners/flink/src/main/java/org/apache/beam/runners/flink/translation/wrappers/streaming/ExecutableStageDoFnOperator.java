@@ -21,6 +21,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -119,6 +120,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
   private transient SdkHarnessDoFnRunner<InputT, OutputT> sdkHarnessRunner;
   private transient FlinkMetricContainer flinkMetricContainer;
   private transient long backupWatermarkHold = Long.MIN_VALUE;
+  private transient ArrayDeque<Runnable> cleanupTimers;
 
   /** Constructor. */
   public ExecutableStageDoFnOperator(
@@ -189,6 +191,7 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
             flinkMetricContainer.updateMetrics(stepName, response.getMonitoringInfosList());
           }
         };
+    cleanupTimers = new ArrayDeque<>();
 
     // This will call {@code createWrappingDoFnRunner} which needs the above dependencies.
     super.open();
@@ -403,6 +406,21 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
   @Override
   public void fireTimer(InternalTimer<?, TimerInternals.TimerData> timer) {
     final ByteBuffer encodedKey = (ByteBuffer) timer.getKey();
+    if (CleanupTimer.GC_TIMER_ID.equals(timer.getNamespace().getTimerId())) {
+      // hold cleanup until bundle is complete
+      cleanupTimers.add(
+          () -> {
+            try {
+              // still need to process as timer, see CleanupTimer
+              stateBackendLock.lock();
+              getKeyedStateBackend().setCurrentKey(encodedKey);
+              super.fireTimer(timer);
+            } finally {
+              stateBackendLock.unlock();
+            }
+          });
+      return;
+    }
     // We have to synchronize to ensure the state backend is not concurrently accessed by the state
     // requests
     try {
@@ -501,6 +519,11 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
                 // at this point the bundle is finished, allow the watermark to pass
                 // we are restoring the previous hold in case it was already set for side inputs
                 setPushedBackWatermark(backupWatermarkHold);
+                // fire cleanup timers, they can only execute after the bundle is complete
+                // as they remove the state that the timer callback may rely on
+                while (!cleanupTimers.isEmpty()) {
+                  cleanupTimers.remove().run();
+                }
                 super.processWatermark(mark);
               } catch (Exception e) {
                 throw new RuntimeException(
@@ -510,6 +533,12 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
       }
     }
     super.processWatermark(mark);
+    // if this was the final watermark, then no callback was scheduled
+    if (mark.getTimestamp() >= BoundedWindow.TIMESTAMP_MAX_VALUE.getMillis()) {
+      while (!cleanupTimers.isEmpty()) {
+        cleanupTimers.remove().run();
+      }
+    }
   }
 
   private static class SdkHarnessDoFnRunner<InputT, OutputT>
