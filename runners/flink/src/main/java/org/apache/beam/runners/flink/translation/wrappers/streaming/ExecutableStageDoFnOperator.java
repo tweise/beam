@@ -237,8 +237,8 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     return StateRequestHandlers.delegateBasedUponType(handlerMap);
   }
 
-  private static class BagUserStateFactory
-      implements StateRequestHandlers.BagUserStateHandlerFactory {
+  private static class BagUserStateFactory<K extends ByteString, V, W extends BoundedWindow>
+      implements StateRequestHandlers.BagUserStateHandlerFactory<K, V, W> {
 
     private final StateInternals stateInternals;
     private final KeyedStateBackend<ByteBuffer> keyedStateBackend;
@@ -255,13 +255,12 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
     }
 
     @Override
-    public <K, V, W extends BoundedWindow>
-        StateRequestHandlers.BagUserStateHandler<K, V, W> forUserState(
-            String pTransformId,
-            String userStateId,
-            Coder<K> keyCoder,
-            Coder<V> valueCoder,
-            Coder<W> windowCoder) {
+    public StateRequestHandlers.BagUserStateHandler<K, V, W> forUserState(
+        String pTransformId,
+        String userStateId,
+        Coder<K> keyCoder,
+        Coder<V> valueCoder,
+        Coder<W> windowCoder) {
       return new StateRequestHandlers.BagUserStateHandler<K, V, W>() {
         @Override
         public Iterable<V> get(K key, W window) {
@@ -331,9 +330,8 @@ public class ExecutableStageDoFnOperator<InputT, OutputT> extends DoFnOperator<I
           }
         }
 
-        private void prepareStateBackend(K key) {
-          // TODO: fix type parameters for ByteString
-          final ByteBuffer encodedKey = ByteBuffer.wrap(((ByteString) key).toByteArray());
+        private void prepareStateBackend(ByteString key) {
+          final ByteBuffer encodedKey = ByteBuffer.wrap(key.toByteArray());
           keyedStateBackend.setCurrentKey(encodedKey);
         }
       };

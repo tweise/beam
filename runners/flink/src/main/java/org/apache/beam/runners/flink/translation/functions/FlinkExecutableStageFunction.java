@@ -451,8 +451,8 @@ public class FlinkExecutableStageFunction<InputT> extends AbstractRichFunction
    * due to the GroupReduceFunction being called once per key. Needs to be reset via {@code
    * resetForNewKey()} before processing a new key.
    */
-  private static class InMemoryBagUserStateFactory
-      implements StateRequestHandlers.BagUserStateHandlerFactory {
+  private static class InMemoryBagUserStateFactory<K, V, W extends BoundedWindow>
+      implements StateRequestHandlers.BagUserStateHandlerFactory<K, V, W> {
 
     private List<InMemorySingleKeyBagState> handlers;
 
@@ -461,13 +461,12 @@ public class FlinkExecutableStageFunction<InputT> extends AbstractRichFunction
     }
 
     @Override
-    public <K, V, W extends BoundedWindow>
-        StateRequestHandlers.BagUserStateHandler<K, V, W> forUserState(
-            String pTransformId,
-            String userStateId,
-            Coder<K> keyCoder,
-            Coder<V> valueCoder,
-            Coder<W> windowCoder) {
+    public StateRequestHandlers.BagUserStateHandler<K, V, W> forUserState(
+        String pTransformId,
+        String userStateId,
+        Coder<K> keyCoder,
+        Coder<V> valueCoder,
+        Coder<W> windowCoder) {
 
       InMemorySingleKeyBagState<K, V, W> bagUserStateHandler =
           new InMemorySingleKeyBagState<>(userStateId, valueCoder, windowCoder);
